@@ -1,4 +1,4 @@
-"""Main ProofHoldings client."""
+"""Main Proof client."""
 
 from __future__ import annotations
 
@@ -16,16 +16,16 @@ DEFAULT_TIMEOUT = 30.0
 DEFAULT_MAX_RETRIES = 2
 
 
-class ProofHoldings:
+class Proof:
     """Official Python client for the proof.holdings API.
 
     Usage::
 
         import asyncio
-        from proof_sdk import ProofHoldings
+        from proof_sdk import Proof
 
         async def main():
-            proof = ProofHoldings("pk_live_...")
+            proof = Proof("pk_live_...")
 
             # Create a verification
             v = await proof.verifications.create(
@@ -49,7 +49,7 @@ class ProofHoldings:
         max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         if not api_key:
-            raise ValueError("api_key is required")
+            raise ValueError('api_key is required. Pass your key as: Proof("pk_live_...")')
 
         self._http = HttpClient(
             api_key=api_key,
@@ -68,7 +68,7 @@ class ProofHoldings:
         """Close the underlying HTTP client."""
         await self._http.close()
 
-    async def __aenter__(self) -> ProofHoldings:
+    async def __aenter__(self) -> Proof:
         return self
 
     async def __aexit__(self, *args: object) -> None:

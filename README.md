@@ -18,10 +18,10 @@ pip install proof-sdk[jwt]
 
 ```python
 import asyncio
-from proof_sdk import ProofHoldings
+from proof_sdk import Proof
 
 async def main():
-    async with ProofHoldings("pk_live_...") as proof:
+    async with Proof("pk_live_...") as proof:
         # Create a phone verification
         v = await proof.verifications.create(
             type="phone",
@@ -120,23 +120,23 @@ result = await proof.webhook_deliveries.retry("del_abc123")
 ## Error Handling
 
 ```python
-from proof_sdk import ProofHoldings, NotFoundError, RateLimitError, RequestTimeoutError, ProofHoldingsError
+from proof_sdk import Proof, NotFoundError, RateLimitError, RequestTimeoutError, ProofError
 
-async with ProofHoldings("pk_live_...") as proof:
+async with Proof("pk_live_...") as proof:
     try:
         v = await proof.verifications.retrieve("nonexistent")
     except NotFoundError as e:
         print(f"Not found: {e.code}")
     except RateLimitError:
         print("Rate limited, try again later")
-    except ProofHoldingsError as e:
+    except ProofError as e:
         print(f"API error {e.status_code}: {e.code} - {e}")
 ```
 
 ## Configuration
 
 ```python
-proof = ProofHoldings(
+proof = Proof(
     "pk_live_...",
     base_url="https://api.proof.holdings",  # Default
     timeout=30.0,                            # Seconds, default 30
