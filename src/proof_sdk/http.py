@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from .errors import ProofHoldingsError, NetworkError, RequestTimeoutError
+from .errors import ProofError, NetworkError, RequestTimeoutError
 from .version import VERSION
 
 
@@ -86,11 +86,11 @@ class HttpClient:
                 # Error responses
                 if response.status_code >= 400:
                     api_error = body.get("error") if isinstance(body, dict) else None
-                    raise ProofHoldingsError.from_response(response.status_code, api_error)
+                    raise ProofError.from_response(response.status_code, api_error)
 
                 return body
 
-            except ProofHoldingsError:
+            except ProofError:
                 raise
             except httpx.TimeoutException as e:
                 last_error = e
