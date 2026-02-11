@@ -59,6 +59,16 @@ v = await proof.verifications.submit("ver_abc123", code="ABC123")
 
 # Poll until complete
 v = await proof.verifications.wait_for_completion("ver_abc123", interval=2.0, timeout=300.0)
+
+# WABA (WhatsApp Business) verification
+v = await proof.verifications.create(type="waba", channel="waba_otp", identifier="+37069199199")
+# OTP is sent via WhatsApp — submit with proof.verifications.submit(v["id"], code="123456")
+
+# Telegram Bot verification
+v = await proof.verifications.create(
+    type="telegram_bot", channel="telegram_bot_token", identifier="@mybusinessbot"
+)
+# Submit bot token with proof.verifications.submit(v["id"], code="bot_token_here")
 ```
 
 ### Verification Requests (Multi-Asset)
