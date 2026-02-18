@@ -50,8 +50,8 @@ class TestVerifications:
 
         await v.retrieve("ver/special&id")
 
-        # Python's quote() uses safe='/' by default, so / is preserved but & is encoded
-        mock_http.get.assert_awaited_once_with("/api/v1/verifications/ver/special%26id")
+        # quote(safe='') encodes all special chars including /
+        mock_http.get.assert_awaited_once_with("/api/v1/verifications/ver%2Fspecial%26id")
 
     async def test_list_passes_filters(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"data": []}

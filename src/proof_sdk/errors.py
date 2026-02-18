@@ -24,10 +24,17 @@ class ProofError(Exception):
 
     @staticmethod
     def from_response(status_code: int, error: dict[str, Any] | None = None) -> ProofError:
+        default_msg = f"Request failed with status {status_code}"
         code = error.get("code", f"http_{status_code}") if error else f"http_{status_code}"
-        message = error.get("message", f"Request failed with status {status_code}") if error else f"Request failed with status {status_code}"
+        message = error.get("message", default_msg) if error else default_msg
         details = error.get("details") if error else None
         request_id = error.get("request_id") if error else None
+
+        # 429 handled separately to preserve retry_after / remaining_attempts
+        if status_code == 429:
+            if error:
+                return RateLimitError.from_api_error(error)
+            return RateLimitError(message, code, details, request_id)
 
         error_map: dict[int, type[ProofError]] = {
             400: ValidationError,
@@ -35,7 +42,6 @@ class ProofError(Exception):
             403: ForbiddenError,
             404: NotFoundError,
             409: ConflictError,
-            429: RateLimitError,
         }
 
         cls = error_map.get(status_code)
@@ -72,8 +78,25 @@ class ConflictError(ProofError):
 
 
 class RateLimitError(ProofError):
+    """Rate limit or auth lockout error with optional retry/attempt fields."""
+
     def __init__(self, message: str, code: str, details: Any = None, request_id: str | None = None) -> None:
         super().__init__(message, code, 429, details, request_id)
+        self.retry_after: int | None = None  # Seconds to wait before retrying
+        self.remaining_attempts: int | None = None  # Remaining attempts before lockout
+
+    @classmethod
+    def from_api_error(cls, error: dict[str, Any]) -> RateLimitError:
+        """Create a RateLimitError from an API error body, preserving lockout fields."""
+        instance = cls(
+            error.get("message", "Rate limited"),
+            error.get("code", "rate_limited"),
+            error.get("details"),
+            error.get("request_id"),
+        )
+        instance.retry_after = error.get("retryAfter")
+        instance.remaining_attempts = error.get("remaining_attempts")
+        return instance
 
 
 class ServerError(ProofError):

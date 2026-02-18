@@ -46,6 +46,18 @@ class TestFromResponse:
         err = ProofError.from_response(429)
         assert isinstance(err, RateLimitError)
 
+    def test_maps_429_with_lockout_fields(self) -> None:
+        err = ProofError.from_response(429, {
+            "code": "auth_lockout",
+            "message": "Too many attempts",
+            "retryAfter": 3600,
+            "remaining_attempts": 0,
+        })
+        assert isinstance(err, RateLimitError)
+        assert err.retry_after == 3600
+        assert err.remaining_attempts == 0
+        assert err.code == "auth_lockout"
+
     def test_maps_500_to_server(self) -> None:
         err = ProofError.from_response(500)
         assert isinstance(err, ServerError)

@@ -26,7 +26,11 @@ class Proofs:
         body: dict[str, Any] = {}
         if reason is not None:
             body["reason"] = reason
-        return await self._http.post(f"/api/v1/proofs/{quote(id)}/revoke", body)
+        return await self._http.post(f"/api/v1/proofs/{quote(id, safe="")}/revoke", body)
+
+    async def status(self, id: str) -> dict[str, Any]:
+        """Get the status of a proof by verification ID."""
+        return await self._http.get(f"/api/v1/proofs/{quote(id, safe="")}/status")
 
     async def list_revoked(self) -> dict[str, Any]:
         """Get the revocation list."""

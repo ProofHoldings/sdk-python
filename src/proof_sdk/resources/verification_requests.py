@@ -53,7 +53,7 @@ class VerificationRequests:
 
     async def retrieve(self, id: str) -> dict[str, Any]:
         """Get a verification request by ID."""
-        return await self._http.get(f"/api/v1/verification-requests/{quote(id)}")
+        return await self._http.get(f"/api/v1/verification-requests/{quote(id, safe="")}")
 
     async def list(
         self,
@@ -75,9 +75,13 @@ class VerificationRequests:
             params["page"] = page
         return await self._http.get("/api/v1/verification-requests", params)
 
+    async def get_by_reference(self, reference_id: str) -> dict[str, Any]:
+        """Get a verification request by its reference ID."""
+        return await self._http.get(f"/api/v1/verification-requests/by-reference/{quote(reference_id, safe="")}")
+
     async def cancel(self, id: str) -> dict[str, Any]:
         """Cancel a pending verification request."""
-        return await self._http.delete(f"/api/v1/verification-requests/{quote(id)}")
+        return await self._http.delete(f"/api/v1/verification-requests/{quote(id, safe="")}")
 
     async def wait_for_completion(
         self,
