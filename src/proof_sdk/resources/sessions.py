@@ -7,6 +7,7 @@ from urllib.parse import quote
 
 from ..http import HttpClient
 from ..polling import poll_until_complete
+from ..types import Session
 
 _TERMINAL_STATES = {"verified", "failed", "expired"}
 
@@ -21,7 +22,7 @@ class Sessions:
         channel: str,
         client_metadata: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> Session:
         """Create a new phone verification session."""
         body: dict[str, Any] = {"channel": channel}
         if client_metadata is not None:
@@ -30,9 +31,9 @@ class Sessions:
             body["context"] = context
         return await self._http.post("/api/v1/sessions", body)
 
-    async def retrieve(self, id: str) -> dict[str, Any]:
+    async def retrieve(self, id: str) -> Session:
         """Get session status by ID."""
-        return await self._http.get(f"/api/v1/sessions/{quote(id)}")
+        return await self._http.get(f"/api/v1/sessions/{quote(id, safe="")}")
 
     async def wait_for_completion(
         self,
@@ -40,7 +41,7 @@ class Sessions:
         *,
         interval: float = 3.0,
         timeout: float = 600.0,
-    ) -> dict[str, Any]:
+    ) -> Session:
         """Poll until session reaches a terminal state."""
         return await poll_until_complete(
             lambda: self.retrieve(id),

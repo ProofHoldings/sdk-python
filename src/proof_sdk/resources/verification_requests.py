@@ -7,6 +7,11 @@ from urllib.parse import quote
 
 from ..http import HttpClient
 from ..polling import poll_until_complete
+from ..types import (
+    CancelRequestResponse,
+    VerificationRequest,
+    VerificationRequestListResponse,
+)
 
 _TERMINAL_STATES = {"completed", "expired", "cancelled"}
 
@@ -28,7 +33,7 @@ class VerificationRequests:
         callback_url: str | None = None,
         expires_in: int | None = None,
         public_profile_id: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> VerificationRequest:
         """Create a multi-asset verification request."""
         body: dict[str, Any] = {"assets": assets}
         if reference_id is not None:
@@ -51,7 +56,7 @@ class VerificationRequests:
             body["public_profile_id"] = public_profile_id
         return await self._http.post("/api/v1/verification-requests", body)
 
-    async def retrieve(self, id: str) -> dict[str, Any]:
+    async def retrieve(self, id: str) -> VerificationRequest:
         """Get a verification request by ID."""
         return await self._http.get(f"/api/v1/verification-requests/{quote(id, safe="")}")
 
@@ -62,7 +67,7 @@ class VerificationRequests:
         reference_id: str | None = None,
         limit: int | None = None,
         page: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> VerificationRequestListResponse:
         """List verification requests with optional filters."""
         params: dict[str, Any] = {}
         if status is not None:
@@ -75,11 +80,11 @@ class VerificationRequests:
             params["page"] = page
         return await self._http.get("/api/v1/verification-requests", params)
 
-    async def get_by_reference(self, reference_id: str) -> dict[str, Any]:
+    async def get_by_reference(self, reference_id: str) -> VerificationRequest:
         """Get a verification request by its reference ID."""
         return await self._http.get(f"/api/v1/verification-requests/by-reference/{quote(reference_id, safe="")}")
 
-    async def cancel(self, id: str) -> dict[str, Any]:
+    async def cancel(self, id: str) -> CancelRequestResponse:
         """Cancel a pending verification request."""
         return await self._http.delete(f"/api/v1/verification-requests/{quote(id, safe="")}")
 
@@ -89,7 +94,7 @@ class VerificationRequests:
         *,
         interval: float = 3.0,
         timeout: float = 600.0,
-    ) -> dict[str, Any]:
+    ) -> VerificationRequest:
         """Poll until request reaches a terminal state."""
         return await poll_until_complete(
             lambda: self.retrieve(id),

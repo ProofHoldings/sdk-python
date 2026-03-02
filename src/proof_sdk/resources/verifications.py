@@ -7,6 +7,16 @@ from urllib.parse import quote
 
 from ..http import HttpClient
 from ..polling import poll_until_complete
+from ..types import (
+    DomainCheckResponse,
+    DomainVerificationResponse,
+    ResendVerificationResponse,
+    TestVerifyResponse,
+    Verification,
+    VerificationListResponse,
+    VerifiedUserDetail,
+    VerifiedUserListResponse,
+)
 
 _TERMINAL_STATES = {"verified", "failed", "expired", "revoked"}
 
@@ -26,7 +36,7 @@ class Verifications:
         client_metadata: dict[str, Any] | None = None,
         dns_provider: dict[str, str] | None = None,
         email_prefix: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> Verification:
         """Create a new verification."""
         body: dict[str, Any] = {"type": type, "channel": channel, "identifier": identifier}
         if external_user_id is not None:
@@ -41,7 +51,7 @@ class Verifications:
             body["email_prefix"] = email_prefix
         return await self._http.post("/api/v1/verifications", body)
 
-    async def retrieve(self, id: str) -> dict[str, Any]:
+    async def retrieve(self, id: str) -> Verification:
         """Get a verification by ID."""
         return await self._http.get(f"/api/v1/verifications/{quote(id, safe="")}")
 
@@ -53,7 +63,7 @@ class Verifications:
         channel: str | None = None,
         limit: int | None = None,
         page: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> VerificationListResponse:
         """List verifications with optional filters."""
         params: dict[str, Any] = {}
         if status is not None:
@@ -68,19 +78,19 @@ class Verifications:
             params["page"] = page
         return await self._http.get("/api/v1/verifications", params)
 
-    async def verify(self, id: str) -> dict[str, Any]:
+    async def verify(self, id: str) -> Verification:
         """Trigger a DNS/HTTP verification check."""
         return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/verify")
 
-    async def submit(self, id: str, code: str) -> dict[str, Any]:
+    async def submit(self, id: str, code: str) -> Verification:
         """Submit an OTP/challenge code."""
         return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/submit", {"code": code})
 
-    async def resend(self, id: str) -> dict[str, Any]:
+    async def resend(self, id: str) -> ResendVerificationResponse:
         """Resend a verification email (email channel only)."""
         return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/resend")
 
-    async def test_verify(self, id: str) -> dict[str, Any]:
+    async def test_verify(self, id: str) -> TestVerifyResponse:
         """Auto-complete a verification in test mode (pk_test_* API keys only)."""
         return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/test-verify")
 
@@ -89,7 +99,7 @@ class Verifications:
         *,
         page: int | None = None,
         limit: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> VerifiedUserListResponse:
         """List verified users grouped by external_user_id."""
         params: dict[str, Any] = {}
         if page is not None:
@@ -98,7 +108,7 @@ class Verifications:
             params["limit"] = limit
         return await self._http.get("/api/v1/verifications/users", params)
 
-    async def get_verified_user(self, external_user_id: str) -> dict[str, Any]:
+    async def get_verified_user(self, external_user_id: str) -> VerifiedUserDetail:
         """Get a single verified user's verifications by external user ID."""
         return await self._http.get(f"/api/v1/verifications/users/{quote(external_user_id, safe="")}")
 
@@ -108,7 +118,7 @@ class Verifications:
         domain: str,
         customer_id: str | None = None,
         verification_method: str | None = None,
-    ) -> dict[str, Any]:
+    ) -> DomainVerificationResponse:
         """Start a B2B domain verification."""
         body: dict[str, Any] = {"domain": domain}
         if customer_id is not None:
@@ -117,7 +127,7 @@ class Verifications:
             body["verification_method"] = verification_method
         return await self._http.post("/api/v1/verifications/domain", body)
 
-    async def check_domain_verification(self, id: str) -> dict[str, Any]:
+    async def check_domain_verification(self, id: str) -> DomainCheckResponse:
         """Check a pending domain verification (DNS/HTTP file)."""
         return await self._http.post(f"/api/v1/verifications/domain/{quote(id, safe="")}/check")
 
@@ -127,7 +137,7 @@ class Verifications:
         *,
         interval: float = 3.0,
         timeout: float = 600.0,
-    ) -> dict[str, Any]:
+    ) -> Verification:
         """Poll until verification reaches a terminal state."""
         return await poll_until_complete(
             lambda: self.retrieve(id),

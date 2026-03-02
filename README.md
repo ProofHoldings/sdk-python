@@ -1,17 +1,17 @@
-# @proof/sdk - Python
+# proof-holdings - Python
 
 Official Python SDK for the [proof.holdings](https://proof.holdings) verification API.
 
 ## Installation
 
 ```bash
-pip install proof-sdk
+pip install proof-holdings
 ```
 
 For offline JWT verification:
 
 ```bash
-pip install proof-sdk[jwt]
+pip install proof-holdings[jwt]
 ```
 
 ## Quick Start
@@ -102,7 +102,7 @@ response = await proof.proofs.revoke("ver_abc123", reason="User requested")
 # Get revocation list
 revoked = await proof.proofs.list_revoked()
 
-# Offline verification (requires proof-sdk[jwt])
+# Offline verification (requires proof-holdings[jwt])
 result = await proof.proofs.verify_offline("eyJhbGciOi...")
 ```
 
