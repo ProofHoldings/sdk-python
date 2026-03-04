@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -21,5 +20,7 @@ def mock_http() -> HttpClient:
     http._client = None
     http.get = AsyncMock()
     http.post = AsyncMock()
+    http.put = AsyncMock()
+    http.patch = AsyncMock()
     http.delete = AsyncMock()
     return http

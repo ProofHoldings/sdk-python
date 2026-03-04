@@ -36,5 +36,5 @@ jwt = [
 
 [project.urls]
 Homepage = "https://proof.holdings"
-Documentation = "https://api.proof.holdings/api/docs/"
+Documentation = "https://proof.holdings/docs"
 Repository = "https://github.com/ProofHoldings/sdk-python"

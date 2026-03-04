@@ -9,6 +9,16 @@ from .resources import (
     Proofs,
     Sessions,
     WebhookDeliveries,
+    Templates,
+    Profiles,
+    Projects,
+    Billing,
+    Phones,
+    Emails,
+    Assets,
+    Auth,
+    Settings,
+    ApiKeys,
 )
 
 DEFAULT_BASE_URL = "https://api.proof.holdings"
@@ -63,6 +73,16 @@ class Proof:
         self.proofs = Proofs(self._http)
         self.sessions = Sessions(self._http)
         self.webhook_deliveries = WebhookDeliveries(self._http)
+        self.templates = Templates(self._http)
+        self.profiles = Profiles(self._http)
+        self.projects = Projects(self._http)
+        self.billing = Billing(self._http)
+        self.phones = Phones(self._http)
+        self.emails = Emails(self._http)
+        self.assets = Assets(self._http)
+        self.auth = Auth(self._http)
+        self.settings = Settings(self._http)
+        self.api_keys = ApiKeys(self._http)
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

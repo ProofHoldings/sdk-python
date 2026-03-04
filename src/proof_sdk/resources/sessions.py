@@ -32,7 +32,7 @@ class Sessions:
 
     async def retrieve(self, id: str) -> dict[str, Any]:
         """Get session status by ID."""
-        return await self._http.get(f"/api/v1/sessions/{quote(id)}")
+        return await self._http.get(f"/api/v1/sessions/{quote(id, safe="")}")
 
     async def wait_for_completion(
         self,

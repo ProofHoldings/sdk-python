@@ -112,6 +112,12 @@ class HttpClient:
     async def post(self, path: str, json: Any = None) -> dict[str, Any]:
         return await self.request("POST", path, json=json)
 
+    async def put(self, path: str, json: Any = None) -> dict[str, Any]:
+        return await self.request("PUT", path, json=json)
+
+    async def patch(self, path: str, json: Any = None) -> dict[str, Any]:
+        return await self.request("PATCH", path, json=json)
+
     async def delete(self, path: str) -> dict[str, Any]:
         return await self.request("DELETE", path)
 
