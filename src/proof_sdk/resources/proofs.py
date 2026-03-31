@@ -6,6 +6,12 @@ from typing import Any
 from urllib.parse import quote
 
 from ..http import HttpClient
+from ..types import (
+    ProofStatusResponse,
+    RevocationList,
+    RevokeProofResponse,
+    ValidateProofResponse,
+)
 
 
 class Proofs:
@@ -14,36 +20,34 @@ class Proofs:
         self._jwks_url = f"{http.base_url}/.well-known/jwks.json"
         self._jwks_client: Any = None
 
-    async def validate(self, proof_token: str, identifier: str | None = None) -> dict[str, Any]:
-        """Validate a proof token online (checks revocation status)."""
+    async def validate(self, proof_token: str) -> ValidateProofResponse:
+        """Validate a proof token online (checks revocation status). Public endpoint — no API key required."""
         body: dict[str, Any] = {"proof_token": proof_token}
-        if identifier is not None:
-            body["identifier"] = identifier
         return await self._http.post("/api/v1/proofs/validate", body)
 
-    async def revoke(self, id: str, reason: str | None = None) -> dict[str, Any]:
+    async def revoke(self, id: str, reason: str | None = None) -> RevokeProofResponse:
         """Revoke a proof by verification ID."""
         body: dict[str, Any] = {}
         if reason is not None:
             body["reason"] = reason
         return await self._http.post(f"/api/v1/proofs/{quote(id, safe="")}/revoke", body)
 
-    async def status(self, id: str) -> dict[str, Any]:
+    async def status(self, id: str) -> ProofStatusResponse:
         """Get the status of a proof by verification ID."""
         return await self._http.get(f"/api/v1/proofs/{quote(id, safe="")}/status")
 
-    async def list_revoked(self) -> dict[str, Any]:
+    async def list_revoked(self) -> RevocationList:
         """Get the revocation list."""
         return await self._http.get("/api/v1/proofs/revoked")
 
-    async def verify_offline(self, token: str) -> dict[str, Any]:
+    async def verify_offline(self, token: str) -> ValidateProofResponse:
         """Verify a proof token offline using JWKS public keys.
 
         The JWKS is fetched once and cached. Call ``refresh_jwks()`` to
         invalidate the cache (e.g. after key rotation).
 
         Requires the ``PyJWT`` and ``cryptography`` packages.
-        Install with: ``pip install proof-sdk[jwt]``
+        Install with: ``pip install proof-holdings[jwt]``
         """
         try:
             import jwt
@@ -51,7 +55,7 @@ class Proofs:
         except ImportError:
             raise ImportError(
                 "Offline verification requires PyJWT and cryptography. "
-                "Install with: pip install proof-sdk[jwt]"
+                "Install with: pip install proof-holdings[jwt]"
             )
 
         try:

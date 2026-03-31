@@ -52,9 +52,12 @@ class IdParam(TypedDict):
 class PaginationResponse(TypedDict):
     """Pagination info in list responses"""
 
-    hasMore: bool
-    nextCursor: NotRequired[str]
+    page: NotRequired[int]
+    limit: NotRequired[int]
     total: NotRequired[int]
+    pages: NotRequired[int]
+    hasMore: NotRequired[bool]
+    nextCursor: NotRequired[str]
 
 RevocationReason = Literal[
     "user_request", "fraud", "key_compromise", "asset_transferred", "other",
@@ -80,10 +83,8 @@ class ActionContext(TypedDict):
     entity: NotRequired[str]
 
 ActionType = Literal[
-    "verification", "2fa", "login", "custom", "confirmation",
+    "verification", "2fa", "login", "custom", "confirmation", "authorization",
 ]
-
-SessionChannel = Literal["telegram", "whatsapp", "viber", "sms"]
 
 class CancelRequestResponse(TypedDict):
     success: bool
@@ -233,6 +234,7 @@ class UserPhone(TypedDict):
     is_primary: bool
     verified_at: NotRequired[str]
     created_at: str
+    channel_metadata: NotRequired[dict[str, Any]]
 
 # ============================================================================
 # Assets
@@ -383,7 +385,9 @@ class Authorization(TypedDict):
 
     id: "ObjectId"
     status: "AuthorizationStatus"
-    phone: str
+    hitl_id: Any
+    recipient: NotRequired[Optional[str]]
+    phone: NotRequired[Optional[str]]
     channel: "AuthorizationChannel"
     scope: "AuthorizationScope"
     business_name: str
@@ -404,6 +408,8 @@ class AuthorizationListResponse(TypedDict):
 class CreateAuthorizationBody(TypedDict):
     """Request body for creating an authorization"""
 
+    hitl_id: Any
+    recipient: str
     phone: str
     channel: "AuthorizationChannel"
     scope: NotRequired[Any]
@@ -416,7 +422,9 @@ class CreateAuthorizationResponse(TypedDict):
 
     id: "ObjectId"
     status: "AuthorizationStatus"
-    phone: str
+    hitl_id: Any
+    recipient: NotRequired[Optional[str]]
+    phone: NotRequired[Optional[str]]
     channel: "AuthorizationChannel"
     scope: "AuthorizationScope"
     business_name: str
@@ -486,9 +494,9 @@ class UsageQueryParams(TypedDict):
 class Challenge(TypedDict):
     """Challenge details for verification"""
 
-    code: str
-    instruction: str
-    expires_at: str
+    code: NotRequired[str]
+    instruction: NotRequired[str]
+    expires_at: NotRequired[str]
 
 class DNSProviderCredentials(TypedDict):
     """DNS provider credentials for auto-DNS verification"""
@@ -522,7 +530,7 @@ class SubmitVerificationCodeRequest(TypedDict):
     code: str
 
 VerificationChannel = Literal[
-    "whatsapp", "telegram", "viber", "sms", "email", "dns", "http", "auto", "github", "google", "facebook", "x", "linkedin", "instagram", "youtube", "tiktok", "ethereum", "solana", "bitcoin", "coinbase", "kraken", "waba_otp", "telegram_bot_token",
+    "whatsapp", "telegram", "viber", "sms", "email", "dns", "http", "auto", "github", "google", "facebook", "x", "linkedin", "instagram", "youtube", "tiktok", "ethereum", "solana", "bitcoin", "coinbase", "kraken", "telegram_bot_token",
 ]
 
 VerificationRequestStatus = Literal[
@@ -540,7 +548,7 @@ VerificationStatus = Literal[
 ]
 
 VerificationType = Literal[
-    "phone", "email", "domain", "social", "wallet", "account", "waba", "telegram_bot",
+    "phone", "email", "domain", "social", "wallet", "account", "telegram_bot",
 ]
 
 class CreateVerificationRequest(TypedDict):
@@ -554,7 +562,7 @@ class CreateVerificationRequest(TypedDict):
     dns_provider: NotRequired[Any]
     email_prefix: NotRequired[Literal["admin", "administrator", "webmaster", "hostmaster", "postmaster"]]
     bot_token: NotRequired[str]
-    waba_credentials: NotRequired[dict[str, Any]]
+    proof_expiry_days: NotRequired[int]
 
 class CreateVerificationRequestBody(TypedDict):
     """Request body for creating a multi-asset verification request"""
@@ -570,6 +578,7 @@ class CreateVerificationRequestBody(TypedDict):
     redirect_url: NotRequired[str]
     callback_url: NotRequired[str]
     expires_in: NotRequired[int]
+    proof_expiry_days: NotRequired[int]
 
 class TestVerifyResponse(TypedDict):
     id: "ObjectId"
@@ -580,7 +589,7 @@ class TestVerifyResponse(TypedDict):
     verified_at: str
     proof_token: str
     proof_expires_at: str
-    test_mode: Literal["true"]
+    test_mode: bool
 
 class Verification(TypedDict):
     """Verification object"""
@@ -593,10 +602,10 @@ class Verification(TypedDict):
     challenge: NotRequired["Challenge"]
     proof: NotRequired["Proof"]
     external_user_id: NotRequired[str]
-    attempts: int
-    max_attempts: int
+    attempts: NotRequired[int]
+    max_attempts: NotRequired[int]
     created_at: str
-    updated_at: str
+    updated_at: NotRequired[str]
     verified_at: NotRequired[str]
 
 class VerificationListQuery(TypedDict):
@@ -619,16 +628,139 @@ class VerificationRequest(TypedDict):
     status: "VerificationRequestStatus"
     assets: list[dict[str, Any]]
     action_type: "ActionType"
+    action_context: NotRequired["ActionContext"]
     partial_ok: bool
+    verification_url: NotRequired[str]
     redirect_url: NotRequired[str]
+    progress: NotRequired[dict[str, Any]]
     expires_at: str
     completed_at: NotRequired[str]
     created_at: str
-    updated_at: str
+    updated_at: NotRequired[str]
 
 class VerificationRequestListResponse(TypedDict):
     data: list["VerificationRequest"]
     pagination: dict[str, Any]
+
+class VerificationRequestProofsResponse(TypedDict):
+    """Proof tokens for verified assets in a verification request"""
+
+    proofs: list[dict[str, Any]]
+
+# ============================================================================
+# Other
+# ============================================================================
+
+class ChatIdDiscoveryPollResponse(TypedDict):
+    """Chat ID discovery poll result"""
+
+    status: Literal["pending", "completed"]
+    chat_id: NotRequired[str]
+
+class ChatIdDiscoveryResponse(TypedDict):
+    """Chat ID discovery token and Telegram deeplink"""
+
+    token: str
+    deep_link: str
+    qr_code: str
+    expires_in: int
+
+ConfirmationStatus = Literal["pending", "approved", "denied"]
+
+HitlChannelType = Literal["telegram", "whatsapp", "browser"]
+
+class HitlChannel(TypedDict):
+    """A messaging channel configured for HITL approvals"""
+
+    type: "HitlChannelType"
+    config: dict[str, Any]
+
+class CreateHitlBody(TypedDict):
+    """Request body for creating a HITL configuration"""
+
+    name: str
+    channels: list["HitlChannel"]
+    timeout_seconds: NotRequired[float]
+
+HitlStatus = Literal["active", "archived"]
+
+class HitlListQuery(TypedDict):
+    """Query parameters for listing HITL configurations"""
+
+    page: NotRequired[int]
+    limit: NotRequired[int]
+    status: NotRequired["HitlStatus"]
+
+class Confirmation(TypedDict):
+    """A HITL confirmation request"""
+
+    id: "ObjectId"
+    hitl_id: Any
+    message: str
+    metadata: NotRequired[Optional[dict[str, Any]]]
+    status: "ConfirmationStatus"
+    timeout_seconds: int
+    response: NotRequired[Optional[dict[str, Any]]]
+    timeout_at: NotRequired[Optional[str]]
+    proof_token: NotRequired[Optional[str]]
+    resolved_at: NotRequired[Optional[str]]
+    environment: Literal["production", "test"]
+    created_at: str
+    updated_at: str
+
+class ConfirmationListQuery(TypedDict):
+    """Query parameters for listing confirmations"""
+
+    page: NotRequired[int]
+    limit: NotRequired[int]
+    status: NotRequired["ConfirmationStatus"]
+    hitl_id: NotRequired["ObjectId"]
+
+class ConfirmationListResponse(TypedDict):
+    """Paginated list of confirmations"""
+
+    data: list["Confirmation"]
+    pagination: dict[str, Any]
+
+class CreateConfirmationBody(TypedDict):
+    """Request body for creating a confirmation"""
+
+    hitl_id: Any
+    message: str
+    proof_expiry_days: NotRequired[int]
+
+class Hitl(TypedDict):
+    """HITL configuration with messaging channels and timeout"""
+
+    id: "ObjectId"
+    name: NotRequired[Optional[str]]
+    profile_id: NotRequired[Any]
+    channels: list["HitlChannel"]
+    timeout_seconds: int
+    status: "HitlStatus"
+    keypair: Optional[dict[str, Any]]
+    created_at: str
+    updated_at: str
+
+class HitlAuthorizationResponse(TypedDict):
+    """Response from requesting authorization consent for HITL channels"""
+
+    hitl_id: "ObjectId"
+    results: list[dict[str, Any]]
+    message: str
+
+class HitlListResponse(TypedDict):
+    """Paginated list of HITL configurations"""
+
+    data: list["Hitl"]
+    pagination: dict[str, Any]
+
+class UpdateHitlBody(TypedDict):
+    """Request body for updating a HITL configuration"""
+
+    name: NotRequired[Optional[str]]
+    channels: NotRequired[list["HitlChannel"]]
+    timeout_seconds: NotRequired[float]
 
 # ============================================================================
 # Profiles
@@ -724,293 +856,6 @@ class PublicProfile(TypedDict):
     updated_at: str
 
 # ============================================================================
-# Other
-# ============================================================================
-
-class ConfirmRevocationBody(TypedDict):
-    """Confirm a previously planned bulk revocation"""
-
-    revocation_token: str
-
-DelegateType = Literal["human", "ai_agent"]
-
-DelegationStatus = Literal["active", "expired", "revoked", "suspended"]
-
-class CreateDelegationBody(TypedDict):
-    """Request body for creating a delegation"""
-
-    team_id: NotRequired["ObjectId"]
-    delegate_member_id: Any
-    scope: dict[str, Any]
-    expires_in: NotRequired[int]
-
-class CreateTeamBody(TypedDict):
-    """Request body for creating a team"""
-
-    name: str
-    description: NotRequired[str]
-    settings: NotRequired[dict[str, Any]]
-
-class DelegationListQuery(TypedDict):
-    """Query parameters for listing delegations"""
-
-    page: NotRequired[int]
-    limit: NotRequired[int]
-    status: NotRequired["DelegationStatus"]
-    team_id: NotRequired["ObjectId"]
-    delegate_type: NotRequired["DelegateType"]
-
-class DelegationScope(TypedDict):
-    """Delegation scope defining what actions are delegated"""
-
-    action_patterns: list[str]
-    policy_id: NotRequired["ObjectId"]
-    constraints: NotRequired[dict[str, Any]]
-
-class Delegation(TypedDict):
-    """Delegation granting scoped authority to a team member or AI agent"""
-
-    id: "ObjectId"
-    user_id: "ObjectId"
-    team_id: NotRequired["ObjectId"]
-    delegate_member_id: "ObjectId"
-    delegate_type: "DelegateType"
-    scope: "DelegationScope"
-    status: "DelegationStatus"
-    proof_token: str
-    proof_expires_at: str
-    uses_count: int
-    last_used_at: NotRequired[str]
-    revoked_at: NotRequired[str]
-    revoked_reason: NotRequired[str]
-    revoked_by: NotRequired["ObjectId"]
-    created_at: str
-    updated_at: str
-
-class DelegationListResponse(TypedDict):
-    """Paginated list of delegations"""
-
-    data: list["Delegation"]
-    pagination: dict[str, Any]
-
-class DelegationUsageResponse(TypedDict):
-    """Delegation usage statistics and audit trail"""
-
-    delegation_id: "ObjectId"
-    uses_count: int
-    last_used_at: NotRequired[str]
-    max_uses: NotRequired[int]
-    remaining_uses: NotRequired[int]
-    audit_trail: list[dict[str, Any]]
-
-PolicyRuleType = Literal["single", "any_of_n", "m_of_n"]
-
-PolicyStatus = Literal["active", "draft", "archived"]
-
-class PolicyListQuery(TypedDict):
-    """Query parameters for listing policies"""
-
-    page: NotRequired[int]
-    limit: NotRequired[int]
-    status: NotRequired["PolicyStatus"]
-    team_id: NotRequired["ObjectId"]
-
-PolicyTimeoutAction = Literal["deny", "escalate"]
-
-class PolicyRules(TypedDict):
-    """Policy approval rules configuration"""
-
-    type: "PolicyRuleType"
-    approvers: list[dict[str, Any]]
-    required_approvals: int
-    action_patterns: list[str]
-    timeout: dict[str, Any]
-    channel_fallback: list[dict[str, Any]]
-
-class CreatePolicyBody(TypedDict):
-    """Request body for creating a policy"""
-
-    team_id: NotRequired[Any]
-    name: str
-    description: NotRequired[str]
-    rules: "PolicyRules"
-
-class Policy(TypedDict):
-    """Approval policy with rules, timeouts, and channel fallback"""
-
-    id: "ObjectId"
-    user_id: "ObjectId"
-    team_id: NotRequired["ObjectId"]
-    name: str
-    description: NotRequired[str]
-    status: "PolicyStatus"
-    rules: "PolicyRules"
-    created_at: str
-    updated_at: str
-
-class PolicyListResponse(TypedDict):
-    """Paginated list of policies"""
-
-    data: list["Policy"]
-    pagination: dict[str, Any]
-
-class RevocationImpactAffected(TypedDict):
-    """IDs of resources affected by the revocation"""
-
-    delegations: list["ObjectId"]
-    authorizations: list["ObjectId"]
-    team_members: list["ObjectId"]
-    verifications: list["ObjectId"]
-
-class BulkRevocationResponse(TypedDict):
-    """Bulk revocation plan with impact preview and token"""
-
-    revocation_token: str
-    expires_in: int
-    requires_2fa: bool
-    impact: dict[str, Any]
-
-class RevocationImpactCounts(TypedDict):
-    """Count of resources affected by the revocation"""
-
-    delegations: int
-    authorizations: int
-    team_members: int
-    verifications: int
-    total: int
-
-class RevocationResult(TypedDict):
-    """Result counts from the executed revocation"""
-
-    revoked_delegations: int
-    revoked_authorizations: int
-    suspended_members: int
-    revoked_verifications: int
-    total: int
-
-RevocationScope = Literal[
-    "phone", "channel", "member", "delegation", "authorization",
-]
-
-class BulkRevocationBody(TypedDict):
-    """Bulk revocation request"""
-
-    scope: "RevocationScope"
-    target_id: "ObjectId"
-    reason: NotRequired[str]
-    cascade: NotRequired[bool]
-
-class ConfirmRevocationResponse(TypedDict):
-    """Confirmed revocation execution result"""
-
-    success: bool
-    scope: "RevocationScope"
-    target_id: "ObjectId"
-    cascade: bool
-    reason: NotRequired[str]
-    result: "RevocationResult"
-
-class RevocationImpactQuery(TypedDict):
-    """Revocation impact preview query"""
-
-    scope: "RevocationScope"
-    target_id: "ObjectId"
-    cascade: NotRequired[bool]
-
-class RevocationImpactResponse(TypedDict):
-    """Revocation impact preview result"""
-
-    scope: "RevocationScope"
-    target_id: "ObjectId"
-    cascade: bool
-    counts: "RevocationImpactCounts"
-    affected: "RevocationImpactAffected"
-
-class RevokeDelegationBody(TypedDict):
-    reason: NotRequired[str]
-
-TeamMemberRole = Literal["owner", "admin", "approver", "viewer"]
-
-class AddTeamMemberBody(TypedDict):
-    """Request body for adding a team member"""
-
-    invite_email: NotRequired[str]
-    invite_phone: NotRequired[str]
-    role: "TeamMemberRole"
-    delegate_type: NotRequired[Any]
-    agent_config: NotRequired[dict[str, Any]]
-
-TeamMemberStatus = Literal["invited", "active", "suspended", "removed"]
-
-class TeamMember(TypedDict):
-    """Team member with role, channels, and delegation type"""
-
-    id: "ObjectId"
-    team_id: "ObjectId"
-    user_id: NotRequired["ObjectId"]
-    invite_email: NotRequired[str]
-    invite_phone: NotRequired[str]
-    role: "TeamMemberRole"
-    status: "TeamMemberStatus"
-    channels: list[dict[str, Any]]
-    delegate_type: "DelegateType"
-    agent_config: NotRequired[dict[str, Any]]
-    joined_at: NotRequired[str]
-    invited_at: str
-    invited_by: "ObjectId"
-    created_at: str
-    updated_at: str
-
-TeamStatus = Literal["active", "archived"]
-
-class Team(TypedDict):
-    """Team grouping approvers for HITL workflows"""
-
-    id: "ObjectId"
-    owner_id: "ObjectId"
-    name: str
-    description: NotRequired[str]
-    status: "TeamStatus"
-    settings: dict[str, Any]
-    created_at: str
-    updated_at: str
-
-class TeamListQuery(TypedDict):
-    """Query parameters for listing teams"""
-
-    page: NotRequired[int]
-    limit: NotRequired[int]
-    status: NotRequired["TeamStatus"]
-
-class TeamListResponse(TypedDict):
-    """Paginated list of teams"""
-
-    data: list["Team"]
-    pagination: dict[str, Any]
-
-class UpdatePolicyBody(TypedDict):
-    """Request body for updating a policy"""
-
-    name: NotRequired[str]
-    description: NotRequired[Optional[str]]
-    status: NotRequired["PolicyStatus"]
-    rules: NotRequired["PolicyRules"]
-
-class UpdateTeamBody(TypedDict):
-    """Request body for updating a team"""
-
-    name: NotRequired[str]
-    description: NotRequired[Optional[str]]
-    status: NotRequired["TeamStatus"]
-    settings: NotRequired[dict[str, Any]]
-
-class UpdateTeamMemberBody(TypedDict):
-    """Request body for updating a team member"""
-
-    role: NotRequired["TeamMemberRole"]
-    status: NotRequired["TeamMemberStatus"]
-
-# ============================================================================
 # API Keys
 # ============================================================================
 
@@ -1061,6 +906,8 @@ class Session(TypedDict):
     proof: NotRequired["Proof"]
     created_at: str
     expires_at: str
+
+SessionChannel = Literal["telegram", "whatsapp", "viber", "sms"]
 
 class SessionIdParam(TypedDict):
     id: str
@@ -1154,15 +1001,14 @@ class RevokedProof(TypedDict):
 class RevocationList(TypedDict):
     """Signed list of revoked proofs"""
 
-    revoked: list["RevokedProof"]
-    generated_at: str
-    signature: str
+    revoked: NotRequired[list["RevokedProof"]]
+    generated_at: NotRequired[str]
+    signature: NotRequired[str]
 
 class ValidateProofRequest(TypedDict):
     """Request body for validating a proof token"""
 
     proof_token: str
-    identifier: NotRequired[str]
 
 class ProofStatusResponse(TypedDict):
     """Proof status check result"""
@@ -1177,11 +1023,14 @@ class ProofStatusResponse(TypedDict):
     is_expired: bool
 
 class ValidateProofResponse(TypedDict):
-    """Proof validation result"""
+    """Proof validation result. Returns verification details when valid, or reason/message when invalid."""
 
     valid: bool
-    proof: NotRequired[dict[str, Any]]
-    error: NotRequired[str]
+    verification: NotRequired[dict[str, Any]]
+    reason: NotRequired[str]
+    message: NotRequired[str]
+    revoked_at: NotRequired[str]
+    revoked_reason: NotRequired[str]
 
 # ============================================================================
 # Templates
@@ -1340,7 +1189,7 @@ class WebhookDeliveryStats(TypedDict):
 WebhookDeliveryStatus = Literal["pending", "delivered", "failed"]
 
 WebhookEventType = Literal[
-    "verification_request.completed", "verification_request.partial", "verification_request.expired", "verification.completed", "confirmation.approved", "confirmation.expired", "confirmation.denied", "team.member_joined", "team.member_removed", "policy.created", "policy.updated", "delegation.created", "delegation.revoked", "proof.revoked",
+    "verification_request.completed", "verification_request.partial", "verification_request.expired", "verification.completed", "confirmation.approved", "confirmation.denied", "proof.revoked",
 ]
 
 class WebhookDelivery(TypedDict):

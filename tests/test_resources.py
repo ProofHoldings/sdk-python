@@ -20,6 +20,16 @@ from proof_sdk.resources.assets import Assets
 from proof_sdk.resources.auth import Auth
 from proof_sdk.resources.settings import Settings
 from proof_sdk.resources.api_keys import ApiKeys
+from proof_sdk.resources.account import Account
+from proof_sdk.resources.two_fa import TwoFA
+from proof_sdk.resources.dns_credentials import DnsCredentials
+from proof_sdk.resources.domains import Domains
+from proof_sdk.resources.user_requests import UserRequests
+from proof_sdk.resources.user_domain_verify import UserDomainVerify
+from proof_sdk.resources.public_profiles import PublicProfiles
+from proof_sdk.resources.authorizations import Authorizations
+from proof_sdk.resources.confirmations import Confirmations as ConfirmationsResource
+from proof_sdk.resources.hitl import HitlConfigs
 
 
 @pytest.mark.asyncio
@@ -135,6 +145,16 @@ class TestVerificationRequests:
         await vr.list(status="pending", limit=5)
 
         mock_http.get.assert_awaited_once_with("/api/v1/verification-requests", {"status": "pending", "limit": 5})
+
+    async def test_get_proofs_gets(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"proofs": [{"type": "phone", "identifier": "+37069199199", "proof_token": "jwt_proof"}]}
+        vr = VerificationRequests(mock_http)
+
+        result = await vr.get_proofs("vr_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/verification-requests/vr_123/proofs")
+        assert len(result["proofs"]) == 1
+        assert result["proofs"][0]["proof_token"] == "jwt_proof"
 
 
 @pytest.mark.asyncio
@@ -810,3 +830,746 @@ class TestApiKeys:
         await ak.regenerate("key_123")
 
         mock_http.post.assert_awaited_once_with("/api/v1/me/api-keys/key_123/regenerate")
+
+
+@pytest.mark.asyncio
+class TestAccount:
+    async def test_initiate_deletion_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"session_id": "sess_123"}
+        a = Account(mock_http)
+
+        await a.initiate_deletion()
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/account/delete", {})
+
+    async def test_deletion_status_gets_by_session(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"status": "pending"}
+        a = Account(mock_http)
+
+        await a.deletion_status("sess_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/account/delete/sess_123")
+
+    async def test_deletion_status_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {}
+        a = Account(mock_http)
+
+        await a.deletion_status("sess/special&id")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/account/delete/sess%2Fspecial%26id")
+
+    async def test_verify_deletion_posts_with_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        a = Account(mock_http)
+
+        await a.verify_deletion("sess_123", code="123456")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/account/delete/sess_123/verify", {"code": "123456"}
+        )
+
+    async def test_verify_deletion_magic_link_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        a = Account(mock_http)
+
+        await a.verify_deletion_magic_link("tok_abc")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/account/delete/magic/tok_abc")
+
+    async def test_delete_sends_delete_with_body(self, mock_http: HttpClient) -> None:
+        mock_http.request.return_value = {"success": True}
+        a = Account(mock_http)
+
+        await a.delete(session_id="sess_123")
+
+        mock_http.request.assert_awaited_once_with(
+            "DELETE", "/api/v1/me/account", json={"session_id": "sess_123"}
+        )
+
+
+@pytest.mark.asyncio
+class TestTwoFA:
+    async def test_start_posts_with_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"session_id": "sess_123"}
+        t = TwoFA(mock_http)
+
+        await t.start(action_type="api_key_view", channel="email")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/2fa/start", {"action_type": "api_key_view", "channel": "email"})
+
+    async def test_get_status_gets_by_session(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"status": "pending"}
+        t = TwoFA(mock_http)
+
+        await t.get_status("sess_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/2fa/sess_123")
+
+    async def test_get_status_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {}
+        t = TwoFA(mock_http)
+
+        await t.get_status("sess/special&id")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/2fa/sess%2Fspecial%26id")
+
+    async def test_verify_posts_with_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        t = TwoFA(mock_http)
+
+        await t.verify("sess_123", code="123456")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/2fa/sess_123/verify", {"code": "123456"}
+        )
+
+    async def test_verify_magic_link_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        t = TwoFA(mock_http)
+
+        await t.verify_magic_link("tok_abc")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/2fa/magic/tok_abc")
+
+
+@pytest.mark.asyncio
+class TestDnsCredentials:
+    async def test_list_gets_endpoint(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": []}
+        d = DnsCredentials(mock_http)
+
+        await d.list()
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/dns-credentials")
+
+    async def test_create_posts_with_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "cred_123"}
+        d = DnsCredentials(mock_http)
+
+        await d.create(provider="cloudflare", credentials={"api_token": "tok_123"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/dns-credentials", {"provider": "cloudflare", "credentials": {"api_token": "tok_123"}}
+        )
+
+    async def test_delete_deletes_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"success": True}
+        d = DnsCredentials(mock_http)
+
+        await d.delete("cred_123")
+
+        mock_http.delete.assert_awaited_once_with("/api/v1/me/dns-credentials/cred_123")
+
+    async def test_delete_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"success": True}
+        d = DnsCredentials(mock_http)
+
+        await d.delete("cred/special&id")
+
+        mock_http.delete.assert_awaited_once_with("/api/v1/me/dns-credentials/cred%2Fspecial%26id")
+
+
+@pytest.mark.asyncio
+class TestDomains:
+    async def test_list_gets_endpoint(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": []}
+        d = Domains(mock_http)
+
+        await d.list()
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/domains")
+
+    async def test_add_posts_with_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "dom_123"}
+        d = Domains(mock_http)
+
+        await d.add(domain="example.com", verification_method="auto_dns")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains", {"domain": "example.com", "verification_method": "auto_dns"}
+        )
+
+    async def test_get_gets_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "dom_123"}
+        d = Domains(mock_http)
+
+        await d.get("dom_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/domains/dom_123")
+
+    async def test_get_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "dom/special&id"}
+        d = Domains(mock_http)
+
+        await d.get("dom/special&id")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/domains/dom%2Fspecial%26id")
+
+    async def test_delete_deletes_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.delete("dom_123")
+
+        mock_http.delete.assert_awaited_once_with("/api/v1/me/domains/dom_123")
+
+    async def test_oauth_url_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"oauth_url": "https://example.com", "state": "abc"}
+        d = Domains(mock_http)
+
+        await d.oauth_url("dom_123")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/domains/dom_123/oauth-url")
+
+    async def test_verify_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.verify("dom_123")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/domains/dom_123/verify")
+
+    async def test_connect_cloudflare_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.connect_cloudflare("dom_123", api_token="tok_cf")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/connect/cloudflare", {"api_token": "tok_cf"}
+        )
+
+    async def test_connect_godaddy_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.connect_godaddy("dom_123", api_key="key", api_secret="secret")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/connect/godaddy", {"api_key": "key", "api_secret": "secret"}
+        )
+
+    async def test_connect_provider_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.connect_provider("dom_123", "namecheap", credentials={"api_key": "k"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/connect/namecheap", {"credentials": {"api_key": "k"}}
+        )
+
+    async def test_connect_provider_encodes_both_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.connect_provider("dom/id", "pro/vider", credentials={"k": "v"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom%2Fid/connect/pro%2Fvider", {"credentials": {"k": "v"}}
+        )
+
+    async def test_add_provider_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.add_provider("dom_123", "route53", credentials={"access_key": "ak"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/add-provider/route53", {"credentials": {"access_key": "ak"}}
+        )
+
+    async def test_add_provider_encodes_both_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.add_provider("dom/id", "pro/vider", credentials={"k": "v"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom%2Fid/add-provider/pro%2Fvider", {"credentials": {"k": "v"}}
+        )
+
+    async def test_get_providers_gets(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"cloudflare": {}}
+        d = Domains(mock_http)
+
+        await d.get_providers()
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/dns-providers")
+
+    async def test_verify_with_credentials_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.verify_with_credentials("dom_123")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/domains/dom_123/verify-with-credentials")
+
+    async def test_check_credentials_gets(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"has_access": True}
+        d = Domains(mock_http)
+
+        await d.check_credentials("dom_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/domains/dom_123/check-credentials")
+
+    async def test_start_email_verification_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.start_email_verification("dom_123", email_prefix="admin")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/verify-email", {"email_prefix": "admin"}
+        )
+
+    async def test_start_email_verification_no_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.start_email_verification("dom_123")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/domains/dom_123/verify-email", {})
+
+    async def test_confirm_email_code_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.confirm_email_code("dom_123", code="123456")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/verify-email/confirm", {"code": "123456"}
+        )
+
+    async def test_resend_email_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.resend_email("dom_123", email_prefix="webmaster")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/verify-email/resend", {"email_prefix": "webmaster"}
+        )
+
+    async def test_email_setup_posts(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.email_setup("dom_123", from_email="noreply@example.com")
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/me/domains/dom_123/email-setup", {"from_email": "noreply@example.com"}
+        )
+
+    async def test_email_setup_no_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = Domains(mock_http)
+
+        await d.email_setup("dom_123")
+
+        mock_http.post.assert_awaited_once_with("/api/v1/me/domains/dom_123/email-setup", {})
+
+    async def test_email_status_gets(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"status": "active"}
+        d = Domains(mock_http)
+
+        await d.email_status("dom_123")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/me/domains/dom_123/email-status")
+
+
+@pytest.mark.asyncio
+class TestUserRequests:
+    async def test_list(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"requests": []}
+        r = UserRequests(mock_http)
+        await r.list()
+        mock_http.get.assert_awaited_once_with("/api/v1/me/verification-requests")
+
+    async def test_list_incoming(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"requests": []}
+        r = UserRequests(mock_http)
+        await r.list_incoming()
+        mock_http.get.assert_awaited_once_with("/api/v1/me/verification-requests/incoming")
+
+    async def test_create(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "req_1"}
+        r = UserRequests(mock_http)
+        await r.create(type="phone")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verification-requests", {"type": "phone"})
+
+    async def test_claim(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        r = UserRequests(mock_http)
+        await r.claim("req_1")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verification-requests/req_1/claim")
+
+    async def test_cancel(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"success": True}
+        r = UserRequests(mock_http)
+        await r.cancel("req_1")
+        mock_http.delete.assert_awaited_once_with("/api/v1/me/verification-requests/req_1")
+
+    async def test_extend(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        r = UserRequests(mock_http)
+        await r.extend("req_1")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verification-requests/req_1/extend")
+
+    async def test_share_email(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        r = UserRequests(mock_http)
+        await r.share_email("req_1")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verification-requests/req_1/share-email")
+
+    async def test_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        r = UserRequests(mock_http)
+        await r.claim("req/special")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verification-requests/req%2Fspecial/claim")
+
+
+@pytest.mark.asyncio
+class TestUserDomainVerify:
+    async def test_start(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"sessionId": "sess_1"}
+        d = UserDomainVerify(mock_http)
+        await d.start(domain="example.com")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verify/domain", {"domain": "example.com"})
+
+    async def test_status(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"status": "pending"}
+        d = UserDomainVerify(mock_http)
+        await d.status("sess_1")
+        mock_http.get.assert_awaited_once_with("/api/v1/me/verify/domain/sess_1")
+
+    async def test_check(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        d = UserDomainVerify(mock_http)
+        await d.check("sess_1")
+        mock_http.post.assert_awaited_once_with("/api/v1/me/verify/domain/sess_1/check")
+
+    async def test_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"status": "pending"}
+        d = UserDomainVerify(mock_http)
+        await d.status("sess/special")
+        mock_http.get.assert_awaited_once_with("/api/v1/me/verify/domain/sess%2Fspecial")
+
+
+@pytest.mark.asyncio
+class TestPublicProfiles:
+    async def test_get_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.get_by_id("prof_1")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/p/prof_1")
+
+    async def test_get_avatar(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"url": "https://..."}
+        p = PublicProfiles(mock_http)
+        await p.get_avatar("prof_1")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/p/prof_1/avatar")
+
+    async def test_get_by_username(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"username": "alice"}
+        p = PublicProfiles(mock_http)
+        await p.get_by_username("alice")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/u/alice")
+
+    async def test_check_username(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"available": True}
+        p = PublicProfiles(mock_http)
+        await p.check_username("alice")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/check-username/alice")
+
+    async def test_list_profiles(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"profiles": []}
+        p = PublicProfiles(mock_http)
+        await p.list_profiles()
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/profiles")
+
+    async def test_create_profile(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "prof_2"}
+        p = PublicProfiles(mock_http)
+        await p.create_profile(name="Test")
+        mock_http.post.assert_awaited_once_with("/api/v1/profiles/profiles", {"name": "Test"})
+
+    async def test_get_profile(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.get_profile("prof_1")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/profiles/prof_1")
+
+    async def test_update_profile(self, mock_http: HttpClient) -> None:
+        mock_http.patch.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.update_profile("prof_1", name="Updated")
+        mock_http.patch.assert_awaited_once_with("/api/v1/profiles/profiles/prof_1", {"name": "Updated"})
+
+    async def test_delete_profile(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"success": True}
+        p = PublicProfiles(mock_http)
+        await p.delete_profile("prof_1")
+        mock_http.delete.assert_awaited_once_with("/api/v1/profiles/profiles/prof_1")
+
+    async def test_set_primary(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        p = PublicProfiles(mock_http)
+        await p.set_primary("prof_1")
+        mock_http.post.assert_awaited_once_with("/api/v1/profiles/profiles/prof_1/primary")
+
+    async def test_update_profile_proofs(self, mock_http: HttpClient) -> None:
+        mock_http.put.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.update_profile_proofs("prof_1", proofs=["p_1"])
+        mock_http.put.assert_awaited_once_with("/api/v1/profiles/profiles/prof_1/proofs", {"proofs": ["p_1"]})
+
+    async def test_get_my_profile(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.get_my_profile()
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/me")
+
+    async def test_update_my_profile(self, mock_http: HttpClient) -> None:
+        mock_http.put.return_value = {"id": "prof_1"}
+        p = PublicProfiles(mock_http)
+        await p.update_my_profile(bio="Hello")
+        mock_http.put.assert_awaited_once_with("/api/v1/profiles/me", {"bio": "Hello"})
+
+    async def test_claim_username(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"success": True}
+        p = PublicProfiles(mock_http)
+        await p.claim_username(username="alice")
+        mock_http.post.assert_awaited_once_with("/api/v1/profiles/me/username", {"username": "alice"})
+
+    async def test_get_available_assets(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"assets": []}
+        p = PublicProfiles(mock_http)
+        await p.get_available_assets()
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/me/assets")
+
+    async def test_update_public_proofs(self, mock_http: HttpClient) -> None:
+        mock_http.put.return_value = {"success": True}
+        p = PublicProfiles(mock_http)
+        await p.update_public_proofs(proofs=["p_1"])
+        mock_http.put.assert_awaited_once_with("/api/v1/profiles/me/proofs", {"proofs": ["p_1"]})
+
+    async def test_encodes_profile_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "prof/special"}
+        p = PublicProfiles(mock_http)
+        await p.get_by_id("prof/special")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/p/prof%2Fspecial")
+
+    async def test_encodes_username(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"available": True}
+        p = PublicProfiles(mock_http)
+        await p.check_username("user/special")
+        mock_http.get.assert_awaited_once_with("/api/v1/profiles/check-username/user%2Fspecial")
+
+
+@pytest.mark.asyncio
+class TestAuthorizations:
+    async def test_create_posts_to_endpoint(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "auth_123", "status": "pending"}
+        a = Authorizations(mock_http)
+        await a.create(phone="+15551234567", channel="whatsapp", business_name="Acme Corp")
+        mock_http.post.assert_awaited_once_with("/api/v1/authorizations", {
+            "phone": "+15551234567",
+            "channel": "whatsapp",
+            "business_name": "Acme Corp",
+        })
+
+    async def test_create_includes_optional_params(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "auth_123"}
+        a = Authorizations(mock_http)
+        await a.create(
+            phone="+15551234567",
+            channel="sms",
+            business_name="Acme",
+            scope="confirmations",
+            business_profile_id="507f1f77bcf86cd799439011",
+            expires_in=86400,
+        )
+        body = mock_http.post.call_args[0][1]
+        assert body["scope"] == "confirmations"
+        assert body["business_profile_id"] == "507f1f77bcf86cd799439011"
+        assert body["expires_in"] == 86400
+
+    async def test_retrieve_gets_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "auth_123"}
+        a = Authorizations(mock_http)
+        await a.retrieve("auth_123")
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations/auth_123")
+
+    async def test_retrieve_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {}
+        a = Authorizations(mock_http)
+        await a.retrieve("auth/special&id")
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations/auth%2Fspecial%26id")
+
+    async def test_list_passes_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        a = Authorizations(mock_http)
+        await a.list(status="active", channel="whatsapp", limit=10)
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations", {
+            "status": "active",
+            "channel": "whatsapp",
+            "limit": 10,
+        })
+
+    async def test_list_without_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        a = Authorizations(mock_http)
+        await a.list()
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations", {})
+
+    async def test_revoke_sends_delete_with_reason(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"id": "auth_123", "status": "revoked"}
+        a = Authorizations(mock_http)
+        await a.revoke("auth_123", reason="No longer needed")
+        mock_http.delete.assert_awaited_once_with(
+            "/api/v1/authorizations/auth_123",
+            {"reason": "No longer needed"},
+        )
+
+    async def test_revoke_sends_delete_without_reason(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = {"id": "auth_123", "status": "revoked"}
+        a = Authorizations(mock_http)
+        await a.revoke("auth_123")
+        mock_http.delete.assert_awaited_once_with("/api/v1/authorizations/auth_123", None)
+
+    async def test_export_passes_params(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "total": 0}
+        a = Authorizations(mock_http)
+        await a.export(format="json", status="active")
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations/export", {
+            "format": "json",
+            "status": "active",
+        })
+
+    async def test_export_without_params(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "total": 0}
+        a = Authorizations(mock_http)
+        await a.export()
+        mock_http.get.assert_awaited_once_with("/api/v1/authorizations/export", {})
+
+
+# =============================================================================
+# Confirmations
+# =============================================================================
+
+@pytest.mark.asyncio
+class TestConfirmations:
+    async def test_create_posts_to_endpoint(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "conf_123", "status": "pending"}
+        c = ConfirmationsResource(mock_http)
+        await c.create(hitl_id="hitl_123", message="Deploy v2.3?")
+        mock_http.post.assert_awaited_once_with("/api/v1/confirmations", {
+            "hitl_id": "hitl_123",
+            "message": "Deploy v2.3?",
+        })
+
+    async def test_retrieve_gets_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "conf_123", "status": "pending"}
+        c = ConfirmationsResource(mock_http)
+        await c.retrieve("conf_123")
+        mock_http.get.assert_awaited_once_with("/api/v1/confirmations/conf_123")
+
+    async def test_retrieve_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "conf/special&id"}
+        c = ConfirmationsResource(mock_http)
+        await c.retrieve("conf/special&id")
+        mock_http.get.assert_awaited_once_with("/api/v1/confirmations/conf%2Fspecial%26id")
+
+    async def test_list_passes_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        c = ConfirmationsResource(mock_http)
+        await c.list(status="pending", hitl_id="hitl_1", limit=10)
+        mock_http.get.assert_awaited_once_with("/api/v1/confirmations", {
+            "status": "pending",
+            "hitl_id": "hitl_1",
+            "limit": 10,
+        })
+
+    async def test_list_without_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        c = ConfirmationsResource(mock_http)
+        await c.list()
+        mock_http.get.assert_awaited_once_with("/api/v1/confirmations", {})
+
+
+# =============================================================================
+# HitlConfigs
+# =============================================================================
+
+@pytest.mark.asyncio
+class TestHitlConfigs:
+    async def test_create_posts_to_endpoint(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "hitl_123", "name": "Ops HITL", "status": "active"}
+        h = HitlConfigs(mock_http)
+        await h.create(channels=[{"type": "telegram", "chat_id": "123456"}], name="Ops HITL")
+        mock_http.post.assert_awaited_once_with("/api/v1/hitl", {
+            "channels": [{"type": "telegram", "chat_id": "123456"}],
+            "name": "Ops HITL",
+        })
+
+    async def test_create_includes_optional_timeout(self, mock_http: HttpClient) -> None:
+        mock_http.post.return_value = {"id": "hitl_123"}
+        h = HitlConfigs(mock_http)
+        await h.create(
+            channels=[{"type": "telegram", "chat_id": "123456"}],
+            name="Ops HITL",
+            timeout_seconds=3600,
+        )
+        body = mock_http.post.call_args[0][1]
+        assert body["timeout_seconds"] == 3600
+
+    async def test_retrieve_gets_by_id(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"id": "hitl_123", "name": "Ops HITL"}
+        h = HitlConfigs(mock_http)
+        await h.retrieve("hitl_123")
+        mock_http.get.assert_awaited_once_with("/api/v1/hitl/hitl_123")
+
+    async def test_retrieve_encodes_special_chars(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {}
+        h = HitlConfigs(mock_http)
+        await h.retrieve("hitl/special&id")
+        mock_http.get.assert_awaited_once_with("/api/v1/hitl/hitl%2Fspecial%26id")
+
+    async def test_list_passes_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        h = HitlConfigs(mock_http)
+        await h.list(status="active", limit=10, page=2)
+        mock_http.get.assert_awaited_once_with("/api/v1/hitl", {
+            "status": "active",
+            "limit": 10,
+            "page": 2,
+        })
+
+    async def test_list_without_filters(self, mock_http: HttpClient) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        h = HitlConfigs(mock_http)
+        await h.list()
+        mock_http.get.assert_awaited_once_with("/api/v1/hitl", {})
+
+    async def test_update_sends_patch(self, mock_http: HttpClient) -> None:
+        mock_http.patch.return_value = {"id": "hitl_123", "name": "Updated HITL"}
+        h = HitlConfigs(mock_http)
+        await h.update("hitl_123", name="Updated HITL", timeout_seconds=7200)
+        mock_http.patch.assert_awaited_once_with("/api/v1/hitl/hitl_123", {
+            "name": "Updated HITL",
+            "timeout_seconds": 7200,
+        })
+
+    async def test_update_sends_channels(self, mock_http: HttpClient) -> None:
+        mock_http.patch.return_value = {"id": "hitl_123"}
+        h = HitlConfigs(mock_http)
+        await h.update("hitl_123", channels=[{"type": "telegram", "chat_id": "999"}])
+        body = mock_http.patch.call_args[0][1]
+        assert body["channels"] == [{"type": "telegram", "chat_id": "999"}]
+
+    async def test_delete_sends_delete(self, mock_http: HttpClient) -> None:
+        mock_http.delete.return_value = None
+        h = HitlConfigs(mock_http)
+        await h.delete("hitl_123")
+        mock_http.delete.assert_awaited_once_with("/api/v1/hitl/hitl_123")

@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "proof-sdk"
+name = "proof-holdings"
 version = "1.0.0"
 description = "Official Python SDK for the proof.holdings verification API"
 readme = "README.md"
@@ -38,3 +38,6 @@ jwt = [
 Homepage = "https://proof.holdings"
 Documentation = "https://proof.holdings/docs"
 Repository = "https://github.com/ProofHoldings/sdk-python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/proof_sdk"]

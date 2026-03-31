@@ -13,6 +13,17 @@ from .assets import Assets
 from .auth import Auth
 from .settings import Settings
 from .api_keys import ApiKeys
+from .account import Account
+from .two_fa import TwoFA
+from .dns_credentials import DnsCredentials
+from .domains import Domains
+from .user_requests import UserRequests
+from .user_domain_verify import UserDomainVerify
+from .public_profiles import PublicProfiles
+from .authorizations import Authorizations
+from .confirmations import Confirmations
+from .hitl import HitlConfigs
+from .hitl_keys import HitlKeys
 
 __all__ = [
     "Verifications",
@@ -30,4 +41,15 @@ __all__ = [
     "Auth",
     "Settings",
     "ApiKeys",
+    "Account",
+    "TwoFA",
+    "DnsCredentials",
+    "Domains",
+    "UserRequests",
+    "UserDomainVerify",
+    "PublicProfiles",
+    "Authorizations",
+    "Confirmations",
+    "HitlConfigs",
+    "HitlKeys",
 ]

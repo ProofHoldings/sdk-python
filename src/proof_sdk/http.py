@@ -118,8 +118,8 @@ class HttpClient:
     async def patch(self, path: str, json: Any = None) -> dict[str, Any]:
         return await self.request("PATCH", path, json=json)
 
-    async def delete(self, path: str) -> dict[str, Any]:
-        return await self.request("DELETE", path)
+    async def delete(self, path: str, json: Any = None) -> dict[str, Any]:
+        return await self.request("DELETE", path, json=json)
 
     @staticmethod
     def _backoff(attempt: int) -> float:

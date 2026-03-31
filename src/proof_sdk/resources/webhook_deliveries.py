@@ -6,13 +6,14 @@ from typing import Any
 from urllib.parse import quote
 
 from ..http import HttpClient
+from ..types import RetryDeliveryResponse, WebhookDelivery, WebhookDeliveryListResponse, WebhookDeliveryStats
 
 
 class WebhookDeliveries:
     def __init__(self, http: HttpClient) -> None:
         self._http = http
 
-    async def stats(self) -> dict[str, Any]:
+    async def stats(self) -> WebhookDeliveryStats:
         """Get webhook delivery statistics (totals, rates, recent failures)."""
         return await self._http.get("/api/v1/webhook-deliveries/stats")
 
@@ -24,7 +25,7 @@ class WebhookDeliveries:
         verification_request_id: str | None = None,
         limit: int | None = None,
         page: int | None = None,
-    ) -> dict[str, Any]:
+    ) -> WebhookDeliveryListResponse:
         """List webhook deliveries with optional filters."""
         params: dict[str, Any] = {}
         if status is not None:
@@ -39,10 +40,10 @@ class WebhookDeliveries:
             params["page"] = page
         return await self._http.get("/api/v1/webhook-deliveries", params)
 
-    async def retrieve(self, id: str) -> dict[str, Any]:
+    async def retrieve(self, id: str) -> WebhookDelivery:
         """Get a webhook delivery by ID."""
         return await self._http.get(f"/api/v1/webhook-deliveries/{quote(id, safe="")}")
 
-    async def retry(self, id: str) -> dict[str, Any]:
+    async def retry(self, id: str) -> RetryDeliveryResponse:
         """Retry a failed webhook delivery."""
         return await self._http.post(f"/api/v1/webhook-deliveries/{quote(id, safe="")}/retry")

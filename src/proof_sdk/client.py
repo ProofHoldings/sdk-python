@@ -19,6 +19,17 @@ from .resources import (
     Auth,
     Settings,
     ApiKeys,
+    Account,
+    TwoFA,
+    DnsCredentials,
+    Domains,
+    UserRequests,
+    UserDomainVerify,
+    PublicProfiles,
+    Authorizations,
+    Confirmations,
+    HitlConfigs,
+    HitlKeys,
 )
 
 DEFAULT_BASE_URL = "https://api.proof.holdings"
@@ -83,6 +94,17 @@ class Proof:
         self.auth = Auth(self._http)
         self.settings = Settings(self._http)
         self.api_keys = ApiKeys(self._http)
+        self.account = Account(self._http)
+        self.two_fa = TwoFA(self._http)
+        self.dns_credentials = DnsCredentials(self._http)
+        self.domains = Domains(self._http)
+        self.user_requests = UserRequests(self._http)
+        self.user_domain_verify = UserDomainVerify(self._http)
+        self.public_profiles = PublicProfiles(self._http)
+        self.authorizations = Authorizations(self._http)
+        self.confirmations = Confirmations(self._http)
+        self.hitl = HitlConfigs(self._http)
+        self.hitl_keys = HitlKeys(self._http)
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

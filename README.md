@@ -1,17 +1,17 @@
-# @proof/sdk - Python
+# proof-holdings - Python
 
 Official Python SDK for the [proof.holdings](https://proof.holdings) verification API.
 
 ## Installation
 
 ```bash
-pip install proof-sdk
+pip install proof-holdings
 ```
 
 For offline JWT verification:
 
 ```bash
-pip install proof-sdk[jwt]
+pip install proof-holdings[jwt]
 ```
 
 ## Quick Start
@@ -60,10 +60,6 @@ v = await proof.verifications.submit("ver_abc123", code="ABC123")
 # Poll until complete
 v = await proof.verifications.wait_for_completion("ver_abc123", interval=2.0, timeout=300.0)
 
-# WABA (WhatsApp Business) verification
-v = await proof.verifications.create(type="waba", channel="waba_otp", identifier="+37069199199")
-# OTP is sent via WhatsApp — submit with proof.verifications.submit(v["id"], code="123456")
-
 # Telegram Bot verification
 v = await proof.verifications.create(
     type="telegram_bot", channel="telegram_bot_token", identifier="@mybusinessbot"
@@ -102,7 +98,7 @@ response = await proof.proofs.revoke("ver_abc123", reason="User requested")
 # Get revocation list
 revoked = await proof.proofs.list_revoked()
 
-# Offline verification (requires proof-sdk[jwt])
+# Offline verification (requires proof-holdings[jwt])
 result = await proof.proofs.verify_offline("eyJhbGciOi...")
 ```
 
