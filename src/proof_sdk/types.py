@@ -733,6 +733,7 @@ class Hitl(TypedDict):
     """HITL configuration with messaging channels and timeout"""
 
     id: "ObjectId"
+    user_id: Any
     name: NotRequired[Optional[str]]
     profile_id: NotRequired[Any]
     channels: list["HitlChannel"]
