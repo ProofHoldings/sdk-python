@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from urllib.parse import quote
 
 from ..http import HttpClient
 from ..polling import poll_until_complete
+from ..types import VerificationRequestProofsResponse
 
 _TERMINAL_STATES = {"completed", "expired", "cancelled"}
 
@@ -83,18 +85,34 @@ class VerificationRequests:
         """Cancel a pending verification request."""
         return await self._http.delete(f"/api/v1/verification-requests/{quote(id, safe="")}")
 
+    async def get_proofs(self, id: str) -> VerificationRequestProofsResponse:
+        """Get proof tokens for verified assets of a verification request."""
+        return await self._http.get(f"/api/v1/verification-requests/{quote(id, safe="")}/proofs")
+
     async def wait_for_completion(
         self,
         id: str,
         *,
-        interval: float = 3.0,
+        interval: float = 2.0,
         timeout: float = 600.0,
+        backoff: float = 1.5,
+        max_interval: float = 30.0,
+        jitter: float = 0.5,
+        cancel_event: asyncio.Event | None = None,
     ) -> dict[str, Any]:
-        """Poll until request reaches a terminal state."""
+        """Poll until request reaches a terminal state.
+
+        Uses exponential backoff with jitter per the standard polling contract.
+        Pass ``cancel_event`` (an :class:`asyncio.Event`) to abort polling early.
+        """
         return await poll_until_complete(
             lambda: self.retrieve(id),
             _TERMINAL_STATES,
             f"Verification request {id}",
             interval=interval,
             timeout=timeout,
+            backoff=backoff,
+            max_interval=max_interval,
+            jitter=jitter,
+            cancel_event=cancel_event,
         )

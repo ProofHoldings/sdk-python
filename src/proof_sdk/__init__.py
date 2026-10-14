@@ -1,6 +1,7 @@
 """Official Python SDK for the proof.holdings verification API."""
 
 from .client import Proof
+from .credentials import LOGIN_COMMAND, ResolvedKey, resolve_api_key, resolve_base_url
 from .errors import (
     ProofError,
     ValidationError,
@@ -16,15 +17,9 @@ from .errors import (
 )
 from .version import VERSION
 
-# Backward compatibility aliases (deprecated — will be removed in v2.0)
-ProofHoldings = Proof  #: .. deprecated:: Use :class:`Proof` instead.
-ProofHoldingsError = ProofError  #: .. deprecated:: Use :class:`ProofError` instead.
-
 __all__ = [
     "Proof",
     "ProofError",
-    "ProofHoldings",
-    "ProofHoldingsError",
     "ValidationError",
     "AuthenticationError",
     "ForbiddenError",
@@ -35,5 +30,9 @@ __all__ = [
     "NetworkError",
     "RequestTimeoutError",
     "PollingTimeoutError",
+    "LOGIN_COMMAND",
+    "ResolvedKey",
+    "resolve_api_key",
+    "resolve_base_url",
     "VERSION",
 ]

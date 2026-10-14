@@ -1,4 +1,4 @@
-"""Shared fixtures for proof-sdk tests."""
+"""Shared fixtures for proof-holdings-sdk tests."""
 
 from __future__ import annotations
 
@@ -21,5 +21,7 @@ def mock_http() -> HttpClient:
     http._client = None
     http.get = AsyncMock()
     http.post = AsyncMock()
+    http.put = AsyncMock()
     http.delete = AsyncMock()
+    http.request = AsyncMock()
     return http

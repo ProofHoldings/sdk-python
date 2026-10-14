@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -62,6 +63,32 @@ class TestSuccessfulRequests:
             call_kwargs = mock_http.request.call_args
             assert call_kwargs.kwargs.get("json") == {"type": "phone"} or call_kwargs[1].get("json") == {"type": "phone"}
 
+    async def test_put_sends_json_body(self) -> None:
+        client = make_client()
+        mock_resp = mock_response(200, {"kid": "abc"})
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http = AsyncMock()
+            mock_http.request.return_value = mock_resp
+            mock_get_client.return_value = mock_http
+
+            await client.put("/api/v1/hitl/h1/keys", {"public_key": "pem"})
+            call_kwargs = mock_http.request.call_args
+            assert call_kwargs.kwargs.get("json") == {"public_key": "pem"} or call_kwargs[1].get("json") == {"public_key": "pem"}
+
+    async def test_delete_sends_optional_json_body(self) -> None:
+        client = make_client()
+        mock_resp = mock_response(200, {"status": "revoked"})
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http = AsyncMock()
+            mock_http.request.return_value = mock_resp
+            mock_get_client.return_value = mock_http
+
+            await client.delete("/api/v1/authorizations/auth_1", {"reason": "no longer needed"})
+            call_kwargs = mock_http.request.call_args
+            assert call_kwargs.kwargs.get("json") == {"reason": "no longer needed"} or call_kwargs[1].get("json") == {"reason": "no longer needed"}
+
     async def test_filters_none_params(self) -> None:
         client = make_client()
         mock_resp = mock_response(200, {"data": []})
@@ -75,6 +102,55 @@ class TestSuccessfulRequests:
             call_kwargs = mock_http.request.call_args
             params = call_kwargs.kwargs.get("params") or call_kwargs[1].get("params")
             assert params == {"status": "verified"}
+
+
+@pytest.mark.asyncio
+class TestNonJsonResponses:
+    async def test_binary_success_returns_envelope(self) -> None:
+        client = make_client()
+        mock_resp = mock_response(200, headers={"content-type": "image/png"})
+        mock_resp.content = b"\x89PNG\r\n"
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http = AsyncMock()
+            mock_http.request.return_value = mock_resp
+            mock_get_client.return_value = mock_http
+
+            result = await client.get("/api/v1/profiles/p/pr_1/avatar")
+            assert result == {"data": b"\x89PNG\r\n", "content_type": "image/png"}
+
+    async def test_non_json_empty_body_returns_empty_dict(self) -> None:
+        client = make_client()
+        mock_resp = mock_response(200, headers={"content-type": "text/plain"})
+        mock_resp.content = b""
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http = AsyncMock()
+            mock_http.request.return_value = mock_resp
+            mock_get_client.return_value = mock_http
+
+            result = await client.get("/api/v1/some/endpoint")
+            assert result == {}
+
+    async def test_missing_content_type_keeps_json_path(self) -> None:
+        client = make_client()
+        mock_resp = mock_response(200, {"id": "x_1"})
+
+        with patch.object(client, "_get_client") as mock_get_client:
+            mock_http = AsyncMock()
+            mock_http.request.return_value = mock_resp
+            mock_get_client.return_value = mock_http
+
+            result = await client.get("/api/v1/whatever")
+            assert result == {"id": "x_1"}
+
+    async def test_client_follows_redirects(self) -> None:
+        client = make_client()
+        try:
+            http = client._get_client()
+            assert http.follow_redirects is True
+        finally:
+            await client.close()
 
 
 @pytest.mark.asyncio
@@ -191,3 +267,56 @@ class TestBackoff:
         assert HttpClient._backoff(3) == 8.0
         assert HttpClient._backoff(4) == 10.0  # Capped at 10
         assert HttpClient._backoff(10) == 10.0
+
+
+class _Trickle(httpx.AsyncByteStream):
+    """A body that arrives one chunk at a time, ``delay`` seconds apart."""
+
+    def __init__(self, chunks: list[bytes], delay: float) -> None:
+        self._chunks = chunks
+        self._delay = delay
+
+    async def __aiter__(self):  # type: ignore[override]
+        for chunk in self._chunks:
+            await asyncio.sleep(self._delay)
+            yield chunk
+
+
+def _public_client_serving(stream: httpx.AsyncByteStream) -> HttpClient:
+    http = make_client()
+    http._public_client = httpx.AsyncClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, stream=stream)),
+        follow_redirects=False,
+    )
+    return http
+
+
+@pytest.mark.asyncio
+class TestFetchPublicDeadline:
+    """One wall-clock deadline over the whole transfer, on every supported Python (>= 3.10).
+
+    ``asyncio.timeout`` only exists from 3.11, and since h-verifier-jwks-js-python the key set is read
+    through this method too — so a 3.10-only attribute here would fail every offline verification.
+    """
+
+    async def test_reads_a_body_without_asyncio_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delattr(asyncio, "timeout", raising=False)
+        http = _public_client_serving(_Trickle([b"ab", b"cd"], 0.0))
+        status, _, body = await http.fetch_public("https://issuer.example/x", timeout=1.0)
+        assert (status, body) == (200, b"abcd")
+
+    async def test_cuts_a_trickling_body_at_the_deadline_without_asyncio_timeout(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delattr(asyncio, "timeout", raising=False)
+        http = _public_client_serving(_Trickle([b"x"] * 50, 0.05))
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        with pytest.raises((TimeoutError, asyncio.TimeoutError)):
+            await http.fetch_public("https://issuer.example/x", timeout=0.3)
+        assert loop.time() - started < 1.5
+
+    async def test_cuts_a_trickling_body_at_the_deadline(self) -> None:
+        http = _public_client_serving(_Trickle([b"x"] * 50, 0.05))
+        with pytest.raises((TimeoutError, asyncio.TimeoutError)):
+            await http.fetch_public("https://issuer.example/x", timeout=0.3)

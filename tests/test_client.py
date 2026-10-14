@@ -17,6 +17,10 @@ class TestClientConstruction:
         assert client.proofs is not None
         assert client.sessions is not None
         assert client.webhook_deliveries is not None
+        assert client.authorizations is not None
+        assert client.confirmations is not None
+        assert client.hitl is not None
+        assert client.hitl_keys is not None
 
     def test_accepts_custom_options(self) -> None:
         client = Proof(
