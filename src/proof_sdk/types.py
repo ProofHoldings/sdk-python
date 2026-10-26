@@ -35,8 +35,10 @@ class ErrorResponse(TypedDict):
 class HealthResponse(TypedDict):
     """Detailed health check response"""
 
-    status: Literal["ok", "healthy", "degraded", "unhealthy"]
+    # Deprecated values: "ok" — removed from the API; kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    status: Literal["ok", "healthy", "degraded", "unhealthy", "unknown"]
     timestamp: Union[str, float]
+    components: NotRequired[list[dict[str, Any]]]
 
 class LivenessResponse(TypedDict):
     """Liveness probe response — always returns ok if the process is alive"""
@@ -247,6 +249,21 @@ class AccountSessionResponse(TypedDict):
     user_id: NotRequired[str]
     created_at: NotRequired[str]
 
+class AutoTopUpRequest(TypedDict):
+    """Switch auto top-up on or off. Switching it on needs a card saved by an earlier top-up."""
+
+    enabled: bool
+    amount: NotRequired[Union[Literal["10"], Literal["50"], Literal["200"]]]
+
+class BalanceResponse(TypedDict):
+    """The prepaid balance, from which proofs past the plan's included amount are drawn"""
+
+    billing_enabled: bool
+    balance: dict[str, Any]
+    low_balance_threshold: int
+    top_up_amounts: list[int]
+    auto_top_up: dict[str, Any]
+
 class ChatIdDiscoveryPollResponse(TypedDict):
     """Chat ID discovery poll result"""
 
@@ -347,6 +364,7 @@ class IdentifierRemovedResponse(TypedDict):
     new_primary: Optional[dict[str, Any]]
     lookalike_watch: Literal["repointed", "canceled", "unchanged"]
     sessions_invalidated: int
+    sessions_signed_out: bool
     notice: list[dict[str, Any]]
 
 class IdentityChallengeCreate(TypedDict):
@@ -376,6 +394,26 @@ class IdentityChallengeListResponse(TypedDict):
     """Identity challenges, newest first"""
 
     data: list["IdentityChallengeResponse"]
+    pagination: dict[str, Any]
+
+class LedgerEntry(TypedDict):
+    """One row of the prepaid balance history"""
+
+    id: str
+    kind: Literal["top_up", "auto_top_up", "usage", "refund", "adjustment"]
+    amount: int
+    currency: Literal["eur"]
+    mills: int
+    proofs: Optional[int]
+    period: Optional[str]
+    invoice_id: Optional[str]
+    created_at: str
+    updated_at: str
+
+class LedgerListResponse(TypedDict):
+    """One page of the prepaid balance history, newest first"""
+
+    data: list["LedgerEntry"]
     pagination: dict[str, Any]
 
 class LookalikeWatchSubscribe(TypedDict):
@@ -432,6 +470,7 @@ MultiChannelPhoneChannel = Literal["whatsapp", "telegram", "sms"]
 class CreateMultiChannelVerificationRequest(TypedDict):
     """Request body for creating a multi-channel verification group"""
 
+    profile_id: NotRequired[str]
     type: Literal["phone"]
     identifier: str
     channels: list["MultiChannelPhoneChannel"]
@@ -783,6 +822,13 @@ class PutHitlKeysBody(TypedDict):
     backup_dek_iv: NotRequired[str]
     backup_dek_tag: NotRequired[str]
 
+class ReadinessResponse(TypedDict):
+    """Readiness probe response — `ready` is true only when both MongoDB and Redis answer"""
+
+    ready: bool
+    checks: dict[str, Any]
+    timestamp: str
+
 class RequestHealthHistoryQueryParams(TypedDict):
     """Completion-rate history query parameters"""
 
@@ -840,6 +886,8 @@ class SuspendProofResponse(TypedDict):
 class ProfileTemplate(TypedDict):
     """A message template as resolved for one public profile — either the profile override or the inherited default."""
 
+    # Deprecated: Removed from the API (templates belong to a project: use the templates resource with the project's id); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+
     channel: "TemplateChannel"
     message_type: str
     subject: NotRequired[str]
@@ -848,6 +896,19 @@ class ProfileTemplate(TypedDict):
     button_url_template: NotRequired[str]
     is_custom: bool
     is_active: bool
+
+class TopUpRequest(TypedDict):
+    """Request body for buying a prepaid balance top-up"""
+
+    amount: Union[Literal["10"], Literal["50"], Literal["200"]]
+    auto_top_up: NotRequired[bool]
+    success_url: str
+    cancel_url: str
+
+class TopUpResponse(TypedDict):
+    """Top-up checkout session creation response"""
+
+    checkout_url: str
 
 class UpdateAuthorizationBody(TypedDict):
     """Request body for updating an authorization's owner-editable metadata (F22)"""
@@ -932,9 +993,10 @@ class ProfileAssetOption(TypedDict):
 class SettingsResponse(TypedDict):
     """Account settings"""
 
-    branding: "BrandingSettings"
     webhook: "WebhookSettingsResponse"
     proof_expiry_days: Optional[int]
+    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    branding: "BrandingSettings"
 
 # ============================================================================
 # Verification Requests
@@ -1160,7 +1222,7 @@ class AuthSessionIdParam(TypedDict):
     sessionId: str
 
 class AuthSessionListItem(TypedDict):
-    """Active session entry"""
+    """Session entry"""
 
     id: str
     channel: "AuthChannel"
@@ -1192,6 +1254,7 @@ class CreateAuthSessionRequest(TypedDict):
     channel: "AuthChannel"
     phone_number: NotRequired[str]
     email: NotRequired[str]
+    return_to: NotRequired[str]
 
 class ExchangeTokenRequest(TypedDict):
     """Request body for exchanging a one-time token for JWT"""
@@ -1206,7 +1269,7 @@ class ExchangeTokenResponse(TypedDict):
     expiresAt: str
 
 class ListSessionsResponse(TypedDict):
-    """List of active sessions"""
+    """List of sessions"""
 
     sessions: list["AuthSessionListItem"]
     total: int
@@ -1348,7 +1411,9 @@ class RevokeAuthorizationBody(TypedDict):
 # Billing
 # ============================================================================
 
-BillingPlan = Literal["free", "pro", "business", "enterprise"]
+BillingPlan = Literal[
+    "free", "starter", "pro", "business", "enterprise",
+]
 
 class CheckoutRequest(TypedDict):
     """Request body for creating a Stripe checkout session"""
@@ -1379,6 +1444,8 @@ class PortalResponse(TypedDict):
 class BrandingSettings(TypedDict):
     """Branding settings"""
 
+    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+
     business_name: NotRequired[str]
     logo_url: NotRequired[Optional[str]]
     primary_color: NotRequired[str]
@@ -1402,9 +1469,10 @@ class UpdateSettingsResponse(TypedDict):
     """Account settings as stored after the update. Carries `webhook.secret` when THIS request created or rotated it — the only response that ever does."""
 
     success: bool
-    branding: "BrandingSettings"
     webhook: "WebhookSettingsResponse"
     proof_expiry_days: Optional[int]
+    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    branding: "BrandingSettings"
 
 # ============================================================================
 # Verifications
@@ -1497,6 +1565,7 @@ VerificationType = Literal[
 class CreateVerificationRequest(TypedDict):
     """Request body for creating a new verification"""
 
+    profile_id: NotRequired[str]
     type: "VerificationType"
     channel: "VerificationChannel"
     identifier: str
@@ -1651,6 +1720,8 @@ class CreateProfileRequest(TypedDict):
     is_public: NotRequired[bool]
     is_primary: NotRequired[bool]
     theme: NotRequired["ProfileTheme"]
+    email_theme: NotRequired[Literal["dark", "light"]]
+    support_email: NotRequired[str]
 
 class PublicProfileDelegation(TypedDict):
     """A published, in-force delegation for a domain the profile shows"""
@@ -1683,6 +1754,8 @@ class UpdateProfileRequest(TypedDict):
     show_delegations: NotRequired[bool]
     theme: NotRequired["ProfileTheme"]
     custom_links: NotRequired[list["CustomLink"]]
+    email_theme: NotRequired[Literal["dark", "light"]]
+    support_email: NotRequired[Optional[str]]
 
 class UsernameParam(TypedDict):
     username: str
@@ -1703,6 +1776,8 @@ class PublicProfile(TypedDict):
     custom_links: NotRequired[list["CustomLink"]]
     proofs: NotRequired[list[dict[str, Any]]]
     show_delegations: NotRequired[bool]
+    email_theme: NotRequired[Optional[Literal["dark", "light"]]]
+    support_email: NotRequired[Optional[str]]
     delegations: NotRequired[Optional[list["PublicProfileDelegation"]]]
     created_at: str
     updated_at: str
@@ -1722,24 +1797,65 @@ class CreateProviderCredentialRequest(TypedDict):
 # ============================================================================
 
 class CreateSessionRequest(TypedDict):
-    """Request body for creating a phone verification session"""
+    """Request body for creating a phone-first verification session"""
 
-    phone: str
+    profile_id: NotRequired[str]
     channel: NotRequired[Literal["whatsapp", "telegram", "sms"]]
+    client_metadata: NotRequired[dict[str, Any]]
+    context: NotRequired[dict[str, Any]]
+    # Deprecated: Removed from the API (a session takes no phone number (the person shares it in the chat), and the server ignores it); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    phone: str
 
 SessionChannel = Literal["telegram", "whatsapp", "sms"]
 
 class SessionIdParam(TypedDict):
     id: str
 
+class SessionSmsNumber(TypedDict):
+    """One of our SMS numbers, for one region"""
+
+    did: str
+    label: str
+    flag: str
+    qr_code: NotRequired[str]
+    qr_text: NotRequired[str]
+
+class SessionSmsNumbers(TypedDict):
+    """Every number an `sms` session's code can be texted to, one per configured region (a region with no number is absent), each with its own QR code. `deep_link` uses the default region's number; the request comes from your server, so nothing in it says where the person is."""
+
+    americas: "SessionSmsNumber"
+    europe: NotRequired["SessionSmsNumber"]
+    israel: NotRequired["SessionSmsNumber"]
+
+class CreateSessionResponse(TypedDict):
+    """A new phone-first session: what to show the person"""
+
+    id: str
+    channel: "SessionChannel"
+    status: Literal["pending"]
+    deep_link: str
+    qr_code: str
+    qr_text: str
+    expires_at: str
+    instructions: str
+    sms_code: NotRequired[str]
+    sms_message: NotRequired[str]
+    sms_dids: NotRequired["SessionSmsNumbers"]
+
 class Session(TypedDict):
-    """Phone verification session"""
+    """Phone-first session status"""
 
     id: "ObjectId"
+    channel: "SessionChannel"
     status: Literal["pending", "verified", "expired"]
-    challenge: NotRequired["Challenge"]
-    proof: NotRequired["Proof"]
     created_at: str
+    phone_number: NotRequired[str]
+    verified_at: NotRequired[str]
+    verification_id: NotRequired[str]
+    proof: NotRequired["Proof"]
+    # Deprecated: Removed from the API (GET /api/v1/sessions/{id} never returned it, and nothing replaces it); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    challenge: NotRequired["Challenge"]
+    # Deprecated: Removed from the API (GET /api/v1/sessions/{id} never returned it; the session's expiry is on the create response); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
     expires_at: str
 
 # ============================================================================

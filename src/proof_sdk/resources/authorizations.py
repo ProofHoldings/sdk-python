@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 from urllib.parse import quote
 
@@ -20,25 +21,43 @@ class Authorizations:
     async def create(
         self,
         *,
+        hitl_id: str,
+        recipient: str,
         phone: str,
         channel: str,
-        business_name: str,
         scope: str | None = None,
+        bsuid: str | None = None,
         business_profile_id: str | None = None,
         expires_in: int | None = None,
+        business_name: str | None = None,
     ) -> CreateAuthorizationResponse:
-        """Create a new authorization request."""
+        """Create a consent request for one recipient of an approval setup.
+
+        The consent message names the approval setup's sub-account; ``business_name`` is
+        deprecated and ignored by the server (it is still sent if given).
+        """
         body: dict[str, Any] = {
+            "hitl_id": hitl_id,
+            "recipient": recipient,
             "phone": phone,
             "channel": channel,
-            "business_name": business_name,
         }
         if scope is not None:
             body["scope"] = scope
+        if bsuid is not None:
+            body["bsuid"] = bsuid
         if business_profile_id is not None:
             body["business_profile_id"] = business_profile_id
         if expires_in is not None:
             body["expires_in"] = expires_in
+        if business_name is not None:
+            warnings.warn(
+                "business_name is ignored: the consent message names the approval setup's "
+                "sub-account. Stop passing it.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            body["business_name"] = business_name
         return await self._http.post("/api/v1/authorizations", body)
 
     async def retrieve(self, id: str) -> Authorization:

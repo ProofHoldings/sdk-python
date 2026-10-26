@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 from urllib.parse import quote
 
 from ..http import HttpClient
 from ..types import MessageType, TemplateChannel
+
+
+def _warn_template_route_retired(replacement: str) -> None:
+    warnings.warn(
+        "The per-profile template routes (/api/v1/me/profiles/{id}/templates) are retired and answer "
+        f"410 endpoint_retired. Use {replacement} instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
 class Profiles:
@@ -21,7 +31,8 @@ class Profiles:
         """Create a new profile.
 
         Accepts ``display_name``, ``bio``, ``avatar_url``, ``business_name``,
-        ``is_business``, ``is_public``, ``is_primary``, and ``theme``.
+        ``is_business``, ``is_public``, ``is_primary``, ``theme``, ``email_theme``
+        (``"dark"`` or ``"light"``), and ``support_email``.
         """
         return await self._http.post("/api/v1/me/profiles", params)
 
@@ -42,7 +53,12 @@ class Profiles:
         return await self._http.post(f"/api/v1/me/profiles/{quote(profile_id, safe='')}/primary")
 
     async def list_templates(self, profile_id: str) -> dict[str, Any]:
-        """List a profile's message templates (custom and default)."""
+        """List a profile's message templates (custom and default).
+
+        Deprecated: the server retired this route (410 ``endpoint_retired``).
+        Use ``templates.list(profile_id=...)``.
+        """
+        _warn_template_route_retired("templates.list(profile_id=...)")
         return await self._http.get(f"/api/v1/me/profiles/{quote(profile_id, safe='')}/templates")
 
     async def update_template(
@@ -52,7 +68,12 @@ class Profiles:
         type: MessageType,
         content: dict[str, Any],
     ) -> dict[str, Any]:
-        """Create or update a profile template for a channel/message type."""
+        """Create or update a profile template for a channel/message type.
+
+        Deprecated: the server retired this route (410 ``endpoint_retired``).
+        Use ``templates.upsert(channel, message_type, content, profile_id=...)``.
+        """
+        _warn_template_route_retired("templates.upsert(channel, message_type, content, profile_id=...)")
         # NOTE: the path f-string must stay on ONE line — parsePySdkMethods
         # does not join adjacent string literals across lines.
         return await self._http.put(
@@ -66,7 +87,12 @@ class Profiles:
         channel: TemplateChannel,
         type: MessageType,
     ) -> dict[str, Any]:
-        """Delete a profile template (resets to default)."""
+        """Delete a profile template (resets to default).
+
+        Deprecated: the server retired this route (410 ``endpoint_retired``).
+        Use ``templates.delete(channel, message_type, profile_id=...)``.
+        """
+        _warn_template_route_retired("templates.delete(channel, message_type, profile_id=...)")
         # NOTE: single-line path f-string — see update_template.
         return await self._http.delete(
             f"/api/v1/me/profiles/{quote(profile_id, safe='')}/templates/{quote(channel, safe='')}/{quote(type, safe='')}"
@@ -83,7 +109,12 @@ class Profiles:
         button_text: str | None = None,
         button_url_template: str | None = None,
     ) -> dict[str, Any]:
-        """Preview a profile template with the profile's branding."""
+        """Preview a profile template with the profile's branding.
+
+        Deprecated: the server retired this route (410 ``endpoint_retired``).
+        Use ``templates.preview(..., profile_id=...)``.
+        """
+        _warn_template_route_retired("templates.preview(..., profile_id=...)")
         payload: dict[str, Any] = {
             "channel": channel,
             "message_type": message_type,

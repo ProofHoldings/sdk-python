@@ -177,14 +177,14 @@ class HttpClient:
     async def get(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return await self.request("GET", path, params=params)
 
-    async def post(self, path: str, json: Any = None) -> dict[str, Any]:
-        return await self.request("POST", path, json=json)
+    async def post(self, path: str, json: Any = None, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return await self.request("POST", path, json=json, params=params)
 
-    async def put(self, path: str, json: Any = None) -> dict[str, Any]:
-        return await self.request("PUT", path, json=json)
+    async def put(self, path: str, json: Any = None, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return await self.request("PUT", path, json=json, params=params)
 
-    async def delete(self, path: str, json: Any = None) -> dict[str, Any]:
-        return await self.request("DELETE", path, json=json)
+    async def delete(self, path: str, json: Any = None, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        return await self.request("DELETE", path, json=json, params=params)
 
     @staticmethod
     def _backoff(attempt: int) -> float:

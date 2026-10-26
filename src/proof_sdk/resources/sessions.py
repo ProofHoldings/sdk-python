@@ -22,9 +22,17 @@ class Sessions:
         channel: str,
         client_metadata: dict[str, Any] | None = None,
         context: dict[str, Any] | None = None,
+        profile_id: str | None = None,
     ) -> dict[str, Any]:
-        """Create a new phone verification session."""
+        """Create a new phone verification session.
+
+        ``channel`` is ``"telegram"``, ``"whatsapp"`` or ``"sms"``. ``profile_id`` names the
+        sub-account (project) the session is for; omitted, the API key's sub-account, else your
+        primary.
+        """
         body: dict[str, Any] = {"channel": channel}
+        if profile_id is not None:
+            body["profile_id"] = profile_id
         if client_metadata is not None:
             body["client_metadata"] = client_metadata
         if context is not None:

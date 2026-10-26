@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
+import httpx
 import pytest
 
+from proof_sdk.http import HttpClient
 from proof_sdk.resources.verifications import Verifications
 from proof_sdk.resources.sessions import Sessions
 from proof_sdk.resources.verification_requests import VerificationRequests
@@ -197,6 +200,17 @@ class TestSessions:
 
         mock_http.post.assert_awaited_once_with("/api/v1/sessions", {"channel": "telegram"})
 
+    async def test_create_sends_the_sub_account_when_named(self, mock_http: Any) -> None:
+        mock_http.post.return_value = {"id": "sess_123", "channel": "sms"}
+        s = Sessions(mock_http)
+
+        await s.create(channel="sms", profile_id="507f1f77bcf86cd799439011", context={"action": "login"})
+
+        mock_http.post.assert_awaited_once_with(
+            "/api/v1/sessions",
+            {"channel": "sms", "profile_id": "507f1f77bcf86cd799439011", "context": {"action": "login"}},
+        )
+
     async def test_retrieve_gets(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"id": "ses_123"}
         s = Sessions(mock_http)
@@ -331,13 +345,47 @@ class TestAuthorizations:
         mock_http.post.return_value = {"id": "auth_123", "status": "pending"}
         a = Authorizations(mock_http)
 
-        await a.create(phone="+1234567890", channel="telegram", business_name="Acme")
+        await a.create(hitl_id="64b7f0c2a1b2c3d4e5f60718", recipient="123456789", phone="+1234567890", channel="telegram")
 
         mock_http.post.assert_awaited_once_with("/api/v1/authorizations", {
+            "hitl_id": "64b7f0c2a1b2c3d4e5f60718",
+            "recipient": "123456789",
             "phone": "+1234567890",
             "channel": "telegram",
-            "business_name": "Acme",
         })
+
+    async def test_create_sends_optional_fields(self, mock_http: Any) -> None:
+        mock_http.post.return_value = {"id": "auth_123", "status": "pending"}
+        a = Authorizations(mock_http)
+
+        await a.create(
+            hitl_id="64b7f0c2a1b2c3d4e5f60718", recipient="BR.abc", phone="+1234567890", channel="whatsapp",
+            scope="confirmations", bsuid="BR.abc", business_profile_id="64b7f0c2a1b2c3d4e5f60719", expires_in=3600,
+        )
+
+        mock_http.post.assert_awaited_once_with("/api/v1/authorizations", {
+            "hitl_id": "64b7f0c2a1b2c3d4e5f60718",
+            "recipient": "BR.abc",
+            "phone": "+1234567890",
+            "channel": "whatsapp",
+            "scope": "confirmations",
+            "bsuid": "BR.abc",
+            "business_profile_id": "64b7f0c2a1b2c3d4e5f60719",
+            "expires_in": 3600,
+        })
+
+    async def test_create_business_name_is_deprecated(self, mock_http: Any) -> None:
+        mock_http.post.return_value = {"id": "auth_123", "status": "pending"}
+        a = Authorizations(mock_http)
+
+        with pytest.warns(DeprecationWarning, match="business_name is ignored"):
+            await a.create(
+                hitl_id="64b7f0c2a1b2c3d4e5f60718", recipient="123456789", phone="+1234567890",
+                channel="telegram", business_name="Acme",
+            )
+
+        sent = mock_http.post.await_args.args[1]
+        assert sent["business_name"] == "Acme"
 
     async def test_retrieve_gets_by_id(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"id": "auth_123"}
@@ -573,7 +621,7 @@ class TestTemplates:
 
         await t.list()
 
-        mock_http.get.assert_awaited_once_with("/api/v1/templates")
+        mock_http.get.assert_awaited_once_with("/api/v1/templates", params=None)
 
     async def test_get_defaults(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"defaults": {}}
@@ -589,7 +637,7 @@ class TestTemplates:
 
         await t.retrieve("telegram", "confirmation_request")
 
-        mock_http.get.assert_awaited_once_with("/api/v1/templates/telegram/confirmation_request")
+        mock_http.get.assert_awaited_once_with("/api/v1/templates/telegram/confirmation_request", params=None)
 
     async def test_upsert_puts_content(self, mock_http: Any) -> None:
         mock_http.put.return_value = {"success": True, "template": {}}
@@ -600,6 +648,7 @@ class TestTemplates:
         mock_http.put.assert_awaited_once_with(
             "/api/v1/templates/whatsapp/verification_request",
             {"body": "Your code is {{code}}", "button_text": "Verify"},
+            params=None,
         )
 
     async def test_delete_deletes_template(self, mock_http: Any) -> None:
@@ -608,7 +657,7 @@ class TestTemplates:
 
         await t.delete("email", "login_request")
 
-        mock_http.delete.assert_awaited_once_with("/api/v1/templates/email/login_request")
+        mock_http.delete.assert_awaited_once_with("/api/v1/templates/email/login_request", params=None)
 
     async def test_preview_posts_content(self, mock_http: Any) -> None:
         mock_http.post.return_value = {"preview": {"body": "x"}, "validation_errors": [], "is_valid": True}
@@ -620,7 +669,7 @@ class TestTemplates:
             "channel": "telegram",
             "message_type": "confirmation_request",
             "body": "Hi {{business_name}}",
-        })
+        }, params=None)
 
     async def test_preview_includes_optional_fields(self, mock_http: Any) -> None:
         mock_http.post.return_value = {"preview": {}, "validation_errors": [], "is_valid": True}
@@ -650,7 +699,7 @@ class TestTemplates:
             "channel": "sms",
             "message_type": "verification_request",
             "variables": {"code": "123456"},
-        })
+        }, params=None)
 
     async def test_render_omits_absent_variables(self, mock_http: Any) -> None:
         mock_http.post.return_value = {"rendered": {}}
@@ -661,7 +710,90 @@ class TestTemplates:
         mock_http.post.assert_awaited_once_with("/api/v1/templates/render", {
             "channel": "sms",
             "message_type": "login_request",
-        })
+        }, params=None)
+
+
+_PROJECT = "64b7f0c2a1d3e4f5a6b7c8d9"
+
+# Every templates operation that takes a project (all but get_defaults): how to call it, and what it
+# must send apart from the project.
+_TEMPLATE_OPERATIONS = [
+    ("list", lambda t, **kw: t.list(**kw), "GET", "/api/v1/templates", None),
+    (
+        "retrieve",
+        lambda t, **kw: t.retrieve("email", "login_request", **kw),
+        "GET", "/api/v1/templates/email/login_request", None,
+    ),
+    (
+        "upsert",
+        lambda t, **kw: t.upsert("email", "login_request", {"body": "Sign in to {{business_name}}"}, **kw),
+        "PUT", "/api/v1/templates/email/login_request", {"body": "Sign in to {{business_name}}"},
+    ),
+    (
+        "delete",
+        lambda t, **kw: t.delete("email", "login_request", **kw),
+        "DELETE", "/api/v1/templates/email/login_request", None,
+    ),
+    (
+        "preview",
+        lambda t, **kw: t.preview(channel="sms", message_type="2fa_request", body="Code {{code}}", **kw),
+        "POST", "/api/v1/templates/preview", {"channel": "sms", "message_type": "2fa_request", "body": "Code {{code}}"},
+    ),
+    (
+        "render",
+        lambda t, **kw: t.render(channel="sms", message_type="2fa_request", **kw),
+        "POST", "/api/v1/templates/render", {"channel": "sms", "message_type": "2fa_request"},
+    ),
+]
+
+
+@pytest.fixture
+async def recording_templates() -> Any:
+    """Templates over a real HttpClient whose transport records each request and answers `{}`."""
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={})
+
+    http = HttpClient(api_key="pk_test_123", base_url="https://api.example.com", timeout=5.0, max_retries=0)
+    http._client = httpx.AsyncClient(base_url=http.base_url, transport=httpx.MockTransport(handler))
+    yield Templates(http), sent
+    await http.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("call", "method", "path", "body"),
+    [op[1:] for op in _TEMPLATE_OPERATIONS],
+    ids=[op[0] for op in _TEMPLATE_OPERATIONS],
+)
+class TestTemplatesProject:
+    async def test_sends_the_project_as_profile_id(
+        self, recording_templates: Any, call: Any, method: str, path: str, body: Any
+    ) -> None:
+        t, sent = recording_templates
+
+        await call(t, profile_id=_PROJECT)
+
+        assert len(sent) == 1
+        assert (sent[0].method, sent[0].url.path, json.loads(sent[0].content) if sent[0].content else None) == (
+            method, path, body,
+        )
+        assert sent[0].url.params.multi_items() == [("profile_id", _PROJECT)]
+
+    async def test_sends_no_query_string_without_a_project(
+        self, recording_templates: Any, call: Any, method: str, path: str, body: Any
+    ) -> None:
+        t, sent = recording_templates
+
+        await call(t)
+
+        assert len(sent) == 1
+        assert (sent[0].method, sent[0].url.path, json.loads(sent[0].content) if sent[0].content else None) == (
+            method, path, body,
+        )
+        assert sent[0].url.query == b""
 
 
 @pytest.mark.asyncio
@@ -721,15 +853,19 @@ class TestProfiles:
         mock_http.get.return_value = {"profile_id": "pr_1", "templates": []}
         p = Profiles(mock_http)
 
-        await p.list_templates("pr_1")
+        with pytest.warns(DeprecationWarning, match=r"templates\.list\(profile_id=") as record:
+            await p.list_templates("pr_1")
 
+        # Attributed to the caller, not the SDK — what lets default warning filters show it.
+        assert record[0].filename == __file__
         mock_http.get.assert_awaited_once_with("/api/v1/me/profiles/pr_1/templates")
 
     async def test_update_template_puts_content(self, mock_http: Any) -> None:
         mock_http.put.return_value = {"channel": "telegram", "message_type": "confirmation_request", "is_custom": True}
         p = Profiles(mock_http)
 
-        await p.update_template("pr_1", "telegram", "confirmation_request", {"body": "Approve {{business_name}}?"})
+        with pytest.warns(DeprecationWarning, match=r"templates\.upsert\(.*profile_id="):
+            await p.update_template("pr_1", "telegram", "confirmation_request", {"body": "Approve {{business_name}}?"})
 
         mock_http.put.assert_awaited_once_with(
             "/api/v1/me/profiles/pr_1/templates/telegram/confirmation_request",
@@ -740,7 +876,8 @@ class TestProfiles:
         mock_http.delete.return_value = {"channel": "email", "message_type": "login_request", "is_custom": False}
         p = Profiles(mock_http)
 
-        await p.delete_template("pr_1", "email", "login_request")
+        with pytest.warns(DeprecationWarning, match=r"templates\.delete\(.*profile_id="):
+            await p.delete_template("pr_1", "email", "login_request")
 
         mock_http.delete.assert_awaited_once_with("/api/v1/me/profiles/pr_1/templates/email/login_request")
 
@@ -748,7 +885,8 @@ class TestProfiles:
         mock_http.post.return_value = {"preview": {"body": "x"}, "variables_used": []}
         p = Profiles(mock_http)
 
-        await p.preview_template("pr_1", channel="sms", message_type="2fa_request", body="Code: {{code}}")
+        with pytest.warns(DeprecationWarning, match=r"templates\.preview\(.*profile_id="):
+            await p.preview_template("pr_1", channel="sms", message_type="2fa_request", body="Code: {{code}}")
 
         mock_http.post.assert_awaited_once_with("/api/v1/me/profiles/pr_1/templates/preview", {
             "channel": "sms",
