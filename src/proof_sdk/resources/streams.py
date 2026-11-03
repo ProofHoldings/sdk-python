@@ -16,9 +16,9 @@ from urllib.parse import quote
 from ..http import HttpClient
 from ..streaming import stream_endpoint
 
-_VERIFICATION_TERMINAL = {"verified", "failed", "expired", "revoked"}
+_VERIFICATION_TERMINAL = {"verified", "failed", "expired", "revoked", "cancelled"}
 _CONFIRMATION_TERMINAL = {"approved", "denied", "expired", "cancelled"}
-_AUTH_SESSION_TERMINAL = {"authenticated", "failed", "expired", "cancelled"}
+_AUTH_SESSION_TERMINAL = {"verified", "failed", "expired", "completed_elsewhere"}
 _TWOFA_TERMINAL = {"verified", "failed", "expired", "cancelled"}
 _PHONE_ADD_TERMINAL = {"verified", "failed", "expired", "cancelled"}
 _EMAIL_ADD_TERMINAL = {"verified", "failed", "expired", "cancelled"}

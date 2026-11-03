@@ -97,7 +97,7 @@ result = await proof.verification_requests.wait_for_completion(req["id"])
 result = await proof.proofs.validate("eyJhbGciOi...")
 
 # Revoke
-response = await proof.proofs.revoke("ver_abc123", reason="User requested")
+response = await proof.proofs.revoke("ver_abc123", reason="user_request")
 
 # Get revocation list
 revoked = await proof.proofs.list_revoked()
@@ -166,6 +166,35 @@ deliveries = await proof.webhook_deliveries.list(status="failed")
 
 # Retry a failed delivery
 result = await proof.webhook_deliveries.retry("del_abc123")
+```
+
+### Webhook Endpoints
+
+Each endpoint signs its deliveries with its own secret. The secret is returned **once** — by
+`create` and by `rotate_secret` — and never by `list`, `retrieve` or `update` (they carry
+`secret_set` only), so store it when you receive it.
+
+```python
+# Create an endpoint for every sub-account (scope="selected" + profile_ids for chosen ones)
+endpoint = await proof.webhook_endpoints.create(
+    url="https://yourapp.com/webhooks/proof",
+    scope="all",
+    events=["verification.completed", "proof.revoked"],
+)
+secret = endpoint["secret"]  # returned only now
+
+# List, retrieve, update (description=None clears the description)
+endpoints = await proof.webhook_endpoints.list()
+endpoint = await proof.webhook_endpoints.retrieve(endpoint["id"])
+await proof.webhook_endpoints.update(endpoint["id"], status="disabled")
+
+# Rotate the signing secret (the new one is returned once), then delete
+rotated = await proof.webhook_endpoints.rotate_secret(endpoint["id"])
+await proof.webhook_endpoints.delete(endpoint["id"])
+
+# Rotate a sub-account's callback signing secret (what signs its callback_url deliveries)
+callback = await proof.profiles.rotate_callback_secret("profile_id")
+new_secret = callback["secret"]  # returned only now
 ```
 
 ## Error Handling

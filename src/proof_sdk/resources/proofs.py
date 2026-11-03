@@ -38,6 +38,28 @@ _SLOT_SUSPENDED = 0b10
 
 #: The only ``iss`` a proof token may carry.
 PROOF_TOKEN_ISSUER = "proof.holdings"
+_MISSING_PROOF_CLAIMS = (
+    "token is missing the claims a proof carries (type, channel, identifier_hash, user_id or tenant_id)"
+)
+
+
+def _has_required_proof_claims(claims: dict[str, Any]) -> bool:
+    """What the issuer itself requires of a proof (``POST /proofs/validate``).
+
+    The proof key also signs artifacts that are not proofs, such as data-export receipts, so a good
+    signature alone does not make a token a proof.
+    """
+
+    def present(key: str) -> bool:
+        value = claims.get(key)
+        return isinstance(value, str) and value != ""
+
+    return (
+        (present("user_id") or present("tenant_id"))
+        and present("type")
+        and present("channel")
+        and present("identifier_hash")
+    )
 
 
 #: Ports that add nothing to an origin, since they are the scheme's own default.
@@ -190,18 +212,23 @@ class Proofs:
 
         Revoking a PROOF does not withdraw the asset, consent or delegation it is about —
         those have their own surfaces.
+
+        ``reason`` is one of ``user_request``, ``fraud``, ``key_compromise``,
+        ``asset_transferred`` or ``other`` (the API refuses any other value, an empty string
+        included); left as ``None``, no reason is sent and the API records ``user_request``.
+        ``asset_transferred`` is refused for a delegation proof (``ph_dlg_*``).
         """
         body: dict[str, Any] = {}
         if reason is not None:
             body["reason"] = reason
-        return await self._http.post(f"/api/v1/proofs/{quote(id, safe="")}/revoke", body)
+        return await self._http.post(f"/api/v1/proofs/{quote(id, safe='')}/revoke", body)
 
     async def status(self, id: str) -> dict[str, Any]:
         """Get the status of a proof by public handle (``ph_ctl_*``/``ph_dlg_*``) or verification id.
 
         A live proof reads ``active``.
         """
-        return await self._http.get(f"/api/v1/proofs/{quote(id, safe="")}/status")
+        return await self._http.get(f"/api/v1/proofs/{quote(id, safe='')}/status")
 
     async def list_revoked(self) -> dict[str, Any]:
         """Get the revocation list."""
@@ -224,6 +251,10 @@ class Proofs:
         Pass ``check_revocation=False`` to check the signature alone; the result then reports
         ``revocation_checked: False``.
 
+        A correctly signed token is a proof only if it carries the claims the issuer requires of one:
+        a non-empty ``type``, ``channel`` and ``identifier_hash``, and a ``user_id`` or ``tenant_id``.
+        Anything else signed with the proof key, such as a data-export receipt, answers ``invalid``.
+
         The key set follows the issuer's key-rotation rules (``sdks/shared/fixtures/jwks_rotation/``):
         a key the issuer revoked answers ``key_revoked`` with a ``pull_hint`` naming where a re-issued
         token can be fetched; a key set that could not be refreshed for longer than ``max_jwks_age``
@@ -231,6 +262,14 @@ class Proofs:
         outside its key's window or living longer than the key allows answer ``wrong_key_purpose``,
         ``outside_key_window`` and ``token_lifetime_exceeded``; a ``kid`` the issuer does not publish
         answers ``unknown_key``. A key set that could not be read at all answers ``status_unavailable``.
+
+        A verified HITL confirmation decision (proof schema 1.4) also carries Proof's signed record
+        of who decided: ``decided_by`` (``"approver"`` or ``"owner"``), ``authorization_id`` (the
+        deciding approver's authorization, ``None`` when the owner decided) and ``signer_kid`` (the
+        kid of the key that signed the decision, not the token's header ``kid``). All three are
+        ``None`` on every other proof. They are the issuer's claim; the decider's own signature over
+        the decision is on the confirmation's REST detail (``response.signature``,
+        ``response.signed_input``, ``response.public_key``).
 
         Requires the ``PyJWT`` package (the ``jwt`` extra).
         Install with: ``pip install 'proof-holdings-sdk[jwt]'``
@@ -271,6 +310,8 @@ class Proofs:
                 failure["cache_age_seconds"] = checked.get("cache_age_seconds")
             return failure
         payload = checked["payload"]
+        if family == "proof" and not _has_required_proof_claims(payload):
+            return {"valid": False, "error": _MISSING_PROOF_CLAIMS, "reason": "invalid", "revocation_checked": False}
 
         verified: dict[str, Any] = {
             "valid": True,
@@ -285,6 +326,9 @@ class Proofs:
                 "verified_at": payload.get("verified_at"),
                 "user_id": payload.get("user_id"),
                 "decision": payload.get("decision"),
+                "decided_by": payload.get("decided_by"),
+                "authorization_id": payload.get("authorization_id"),
+                "signer_kid": payload.get("signer_kid"),
             },
             "revocation_checked": False,
         }

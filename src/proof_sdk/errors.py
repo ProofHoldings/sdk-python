@@ -44,9 +44,16 @@ class ProofError(Exception):
             409: ConflictError,
         }
 
+        if status_code == 402:
+            if error:
+                return BalanceEmptyError.from_api_error(error)
+            return BalanceEmptyError(message, code, details, request_id)
+
         cls = error_map.get(status_code)
         if cls:
             return cls(message, code, details, request_id)
+        if code == BILLING_UNAVAILABLE:
+            return BillingUnavailableError(message, status_code, details, request_id)
         if status_code >= 500:
             return ServerError(message, code, status_code, details, request_id)
         return ProofError(message, code, status_code, details, request_id)
@@ -102,6 +109,51 @@ class RateLimitError(ProofError):
 class ServerError(ProofError):
     def __init__(self, message: str, code: str, status_code: int = 500, details: Any = None, request_id: str | None = None) -> None:
         super().__init__(message, code, status_code, details, request_id)
+
+
+#: The code of the billing kill switch's refusal: checkout, portal and top-up while billing is not live.
+BILLING_UNAVAILABLE = "billing_unavailable"
+
+
+class BillingUnavailableError(ServerError):
+    """``503 billing_unavailable`` — billing is not live, so checkout, the portal and top-ups are refused.
+
+    A ``ServerError``, so an existing ``except ServerError`` still catches it; unlike other 5xx
+    answers it is never retried, because asking again cannot change it.
+    """
+
+    def __init__(self, message: str, status_code: int = 503, details: Any = None, request_id: str | None = None) -> None:
+        super().__init__(message, BILLING_UNAVAILABLE, status_code, details, request_id)
+
+
+class BalanceEmptyError(ProofError):
+    """``402 balance_empty`` — the plan's included proofs are used and the prepaid balance is empty.
+
+    Any method that creates a proof request can raise it once billing is live; proofs already
+    issued keep working. ``top_up_url`` is where the owner tops up.
+    """
+
+    def __init__(self, message: str, code: str, details: Any = None, request_id: str | None = None) -> None:
+        super().__init__(message, code, 402, details, request_id)
+        self.top_up_url: str | None = None  # Where the owner tops up the balance
+        self.used: int | None = None  # This period's production proofs
+        self.included: int | None = None  # Proofs the plan includes per period
+        self.balance: int | None = None  # The prepaid balance in euro cents, at or below zero
+
+    @classmethod
+    def from_api_error(cls, error: dict[str, Any]) -> BalanceEmptyError:
+        """Create a BalanceEmptyError from the 402 body, keeping its four fields."""
+        instance = cls(
+            error.get("message", "The prepaid balance is empty"),
+            error.get("code", "balance_empty"),
+            error.get("details"),
+            error.get("request_id"),
+        )
+        instance.top_up_url = error.get("top_up_url")
+        instance.used = error.get("used")
+        instance.included = error.get("included")
+        instance.balance = error.get("balance")
+        return instance
 
 
 class NetworkError(ProofError):

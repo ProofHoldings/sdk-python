@@ -15,7 +15,8 @@ from ..types import (
     MultiChannelVerificationResponse,
 )
 
-_TERMINAL_STATES = {"verified", "failed", "expired", "revoked"}
+# ``cancelled`` is the losing sibling of a first-win multi-channel group: it never changes again.
+_TERMINAL_STATES = {"verified", "failed", "expired", "revoked", "cancelled"}
 
 
 class Verifications:
@@ -50,7 +51,7 @@ class Verifications:
 
     async def retrieve(self, id: str) -> dict[str, Any]:
         """Get a verification by ID."""
-        return await self._http.get(f"/api/v1/verifications/{quote(id, safe="")}")
+        return await self._http.get(f"/api/v1/verifications/{quote(id, safe='')}")
 
     async def create_multi_channel(
         self,
@@ -101,19 +102,19 @@ class Verifications:
 
     async def verify(self, id: str) -> dict[str, Any]:
         """Trigger a DNS/HTTP verification check."""
-        return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/verify")
+        return await self._http.post(f"/api/v1/verifications/{quote(id, safe='')}/verify")
 
     async def submit(self, id: str, code: str) -> dict[str, Any]:
         """Submit an OTP/challenge code."""
-        return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/submit", {"code": code})
+        return await self._http.post(f"/api/v1/verifications/{quote(id, safe='')}/submit", {"code": code})
 
     async def resend(self, id: str) -> dict[str, Any]:
         """Resend a verification email (email channel only)."""
-        return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/resend")
+        return await self._http.post(f"/api/v1/verifications/{quote(id, safe='')}/resend")
 
     async def test_verify(self, id: str) -> dict[str, Any]:
         """Auto-complete a verification in test mode (pk_test_* API keys only)."""
-        return await self._http.post(f"/api/v1/verifications/{quote(id, safe="")}/test-verify")
+        return await self._http.post(f"/api/v1/verifications/{quote(id, safe='')}/test-verify")
 
     async def list_verified_users(
         self,
@@ -131,7 +132,7 @@ class Verifications:
 
     async def get_verified_user(self, external_user_id: str) -> dict[str, Any]:
         """Get a single verified user's verifications by external user ID."""
-        return await self._http.get(f"/api/v1/verifications/users/{quote(external_user_id, safe="")}")
+        return await self._http.get(f"/api/v1/verifications/users/{quote(external_user_id, safe='')}")
 
     async def start_domain_verification(
         self,
@@ -150,7 +151,7 @@ class Verifications:
 
     async def check_domain_verification(self, id: str) -> dict[str, Any]:
         """Check a pending domain verification (DNS/HTTP file)."""
-        return await self._http.post(f"/api/v1/verifications/domain/{quote(id, safe="")}/check")
+        return await self._http.post(f"/api/v1/verifications/domain/{quote(id, safe='')}/check")
 
     async def delete_domain_verification(self, id: str) -> dict[str, Any]:
         """Delete a domain verification attempt that is not verified (pending, verifying or failed).
@@ -160,7 +161,7 @@ class Verifications:
         which belongs to the signed-in owner (the dashboard, or the MCP ``delete_domain`` tool in a
         login session).
         """
-        return await self._http.delete(f"/api/v1/verifications/domain/{quote(id, safe="")}")
+        return await self._http.delete(f"/api/v1/verifications/domain/{quote(id, safe='')}")
 
     async def wait_for_completion(
         self,

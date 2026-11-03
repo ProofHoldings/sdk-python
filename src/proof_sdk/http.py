@@ -8,7 +8,7 @@ from typing import Any
 
 import httpx
 
-from .errors import ProofError, NetworkError, RequestTimeoutError
+from .errors import BILLING_UNAVAILABLE, ProofError, NetworkError, RequestTimeoutError
 from .version import VERSION
 
 
@@ -125,8 +125,15 @@ class HttpClient:
                     await asyncio.sleep(delay)
                     continue
 
-                # Server errors - retry with backoff
+                # Server errors - retry with backoff, except a refusal asking again cannot change
                 if response.status_code >= 500 and attempt < self._max_retries:
+                    try:
+                        body = response.json()
+                    except Exception:
+                        body = {}
+                    api_error = body.get("error") if isinstance(body, dict) else None
+                    if isinstance(api_error, dict) and api_error.get("code") == BILLING_UNAVAILABLE:
+                        raise ProofError.from_response(response.status_code, api_error)
                     await asyncio.sleep(self._backoff(attempt))
                     continue
 

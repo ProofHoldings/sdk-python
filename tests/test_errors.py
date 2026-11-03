@@ -83,6 +83,11 @@ class TestFromResponse:
         assert err.details == {"field": "email"}
         assert err.request_id == "req_abc"
 
+    def test_maps_410_endpoint_retired_to_plain_proof_error_as_in_1_2_0(self) -> None:
+        err = ProofError.from_response(410, {"code": "endpoint_retired", "message": "Gone", "request_id": "req_1"})
+        assert type(err) is ProofError
+        assert (err.code, err.status_code, str(err), err.request_id) == ("endpoint_retired", 410, "Gone", "req_1")
+
 
 class TestErrorHierarchy:
     def test_all_extend_base(self) -> None:

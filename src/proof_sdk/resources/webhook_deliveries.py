@@ -41,8 +41,8 @@ class WebhookDeliveries:
 
     async def retrieve(self, id: str) -> dict[str, Any]:
         """Get a webhook delivery by ID."""
-        return await self._http.get(f"/api/v1/webhook-deliveries/{quote(id, safe="")}")
+        return await self._http.get(f"/api/v1/webhook-deliveries/{quote(id, safe='')}")
 
     async def retry(self, id: str) -> dict[str, Any]:
         """Retry a failed webhook delivery."""
-        return await self._http.post(f"/api/v1/webhook-deliveries/{quote(id, safe="")}/retry")
+        return await self._http.post(f"/api/v1/webhook-deliveries/{quote(id, safe='')}/retry")

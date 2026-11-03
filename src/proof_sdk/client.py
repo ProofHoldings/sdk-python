@@ -13,6 +13,7 @@ from .resources import (
     Sessions,
     Streams,
     WebhookDeliveries,
+    WebhookEndpoints,
     Authorizations,
     Confirmations,
     Hitl,
@@ -24,6 +25,7 @@ from .resources import (
     Me,
     Circles,
     Delegations,
+    Billing,
 )
 
 DEFAULT_TIMEOUT = 30.0
@@ -88,6 +90,7 @@ class Proof:
         self.sessions = Sessions(self._http)
         self.streams = Streams(self._http)
         self.webhook_deliveries = WebhookDeliveries(self._http)
+        self.webhook_endpoints = WebhookEndpoints(self._http)
         self.authorizations = Authorizations(self._http)
         self.confirmations = Confirmations(self._http)
         self.hitl = Hitl(self._http)
@@ -99,6 +102,7 @@ class Proof:
         self.me = Me(self._http)
         self.circles = Circles(self._http)
         self.delegations = Delegations(self._http)
+        self.billing = Billing(self._http)
 
     async def close(self) -> None:
         """Close the underlying HTTP client."""

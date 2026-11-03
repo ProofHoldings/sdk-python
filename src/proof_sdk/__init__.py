@@ -14,6 +14,8 @@ from .errors import (
     NetworkError,
     RequestTimeoutError,
     PollingTimeoutError,
+    BalanceEmptyError,
+    BillingUnavailableError,
 )
 from .version import VERSION
 
@@ -30,6 +32,8 @@ __all__ = [
     "NetworkError",
     "RequestTimeoutError",
     "PollingTimeoutError",
+    "BalanceEmptyError",
+    "BillingUnavailableError",
     "LOGIN_COMMAND",
     "ResolvedKey",
     "resolve_api_key",

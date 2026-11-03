@@ -4,8 +4,12 @@ must be covered by a declared (non-optional) dependency in pyproject.toml.
 
 import re
 import sys
-import tomllib
 from pathlib import Path
+
+import pytest
+
+# `tomllib` is stdlib from 3.11: on the 3.10 CI leg this guard is skipped, and it runs on 3.12.
+tomllib = pytest.importorskip("tomllib")
 
 SDK_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = SDK_ROOT / "src" / "proof_sdk"

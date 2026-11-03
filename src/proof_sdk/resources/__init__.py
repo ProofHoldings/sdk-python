@@ -4,6 +4,7 @@ from .proofs import Proofs
 from .sessions import Sessions
 from .streams import Streams
 from .webhook_deliveries import WebhookDeliveries
+from .webhook_endpoints import WebhookEndpoints
 from .authorizations import Authorizations
 from .confirmations import Confirmations
 from .hitl import Hitl
@@ -15,6 +16,7 @@ from .proof_me import ProofMe
 from .me import Me
 from .circles import Circles
 from .delegations import Delegations
+from .billing import Billing
 
 __all__ = [
     "Verifications",
@@ -23,6 +25,7 @@ __all__ = [
     "Sessions",
     "Streams",
     "WebhookDeliveries",
+    "WebhookEndpoints",
     "Authorizations",
     "Confirmations",
     "Hitl",
@@ -34,4 +37,5 @@ __all__ = [
     "Me",
     "Circles",
     "Delegations",
+    "Billing",
 ]

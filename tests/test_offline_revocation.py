@@ -44,6 +44,14 @@ ORIGIN_FIXTURE = json.loads(
     (Path(__file__).resolve().parents[2] / "shared" / "fixtures" / "status_list_origin.json").read_text()
 )
 
+DECISION_FIXTURE = json.loads(
+    (Path(__file__).resolve().parents[2] / "shared" / "fixtures" / "decision_claims.json").read_text()
+)
+
+PROOF_CLAIMS_FIXTURE = json.loads(
+    (Path(__file__).resolve().parents[2] / "shared" / "fixtures" / "proof_claims.json").read_text()
+)
+
 KID = "test-key-1"
 
 _private_key = ec.generate_private_key(ec.SECP256R1())
@@ -572,3 +580,30 @@ class TestSharedStatusListOriginFixture:
             assert result["error"] == (
                 f"status list uri origin {case['uri_origin']} is not the configured issuer origin {configured}"
             )
+
+
+class TestSharedDecisionClaimsFixture:
+    @pytest.mark.parametrize("case", DECISION_FIXTURE["cases"], ids=lambda c: c["name"])
+    async def test_returns_the_decider_claims(self, server: str, case: dict[str, Any]) -> None:
+        result = await _proofs(server).verify_offline(_mint_proof(status_list=None, extra=case["claims"]))
+
+        assert result["valid"] is True
+        keys = ("decision", "decided_by", "authorization_id", "signer_kid")
+        assert {k: result["payload"][k] for k in keys} == {k: case["payload"].get(k) for k in keys}
+
+
+class TestSharedProofClaimsFixture:
+    @pytest.mark.parametrize("case", PROOF_CLAIMS_FIXTURE["cases"], ids=lambda c: c["name"])
+    async def test_answers_as_the_issuer_would(self, server: str, case: dict[str, Any]) -> None:
+        now = datetime.now(tz=timezone.utc)
+        claims: dict[str, Any] = {"iss": "proof.holdings", "iat": now, **case["claims"]}
+        if case["with_exp"]:
+            claims["exp"] = now + timedelta(hours=1)
+        token = jwt.encode(claims, _private_key, algorithm="ES256", headers={"kid": KID})
+
+        result = await _proofs(server).verify_offline(token)
+
+        assert result["valid"] is case["valid"]
+        if not case["valid"]:
+            assert result["reason"] == "invalid"
+            assert "payload" not in result

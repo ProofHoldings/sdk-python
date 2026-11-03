@@ -27,7 +27,7 @@ class Sessions:
         """Create a new phone verification session.
 
         ``channel`` is ``"telegram"``, ``"whatsapp"`` or ``"sms"``. ``profile_id`` names the
-        sub-account (project) the session is for; omitted, the API key's sub-account, else your
+        sub-account the session is for; omitted, the API key's sub-account, else your
         primary.
         """
         body: dict[str, Any] = {"channel": channel}

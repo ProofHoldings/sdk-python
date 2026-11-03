@@ -129,10 +129,23 @@ class AccountExportJob(TypedDict):
     counts: dict[str, Any]
     download_path: Optional[str]
 
+class AccountExportReceipt(TypedDict):
+    """A signed receipt for one download of an export; kept after the export and after the account is deleted"""
+
+    id: str
+    export_id: str
+    downloaded_by: Literal["owner", "admin"]
+    downloaded_at: str
+    sha256: str
+    size_bytes: int
+    receipt: str
+    notice_suppressed: bool
+
 class AccountExportLatest(TypedDict):
-    """The account's most recent export, or null"""
+    """The account's most recent export, or null, and the receipts of its downloads"""
 
     latest: Optional["AccountExportJob"]
+    receipts: list["AccountExportReceipt"]
 
 class AccountSessionIdParam(TypedDict):
     id: str
@@ -253,7 +266,7 @@ class AutoTopUpRequest(TypedDict):
     """Switch auto top-up on or off. Switching it on needs a card saved by an earlier top-up."""
 
     enabled: bool
-    amount: NotRequired[Union[Literal["10"], Literal["50"], Literal["200"]]]
+    amount: NotRequired[Literal["10", "50", "200", 10, 50, 200]]
 
 class BalanceResponse(TypedDict):
     """The prepaid balance, from which proofs past the plan's included amount are drawn"""
@@ -263,6 +276,12 @@ class BalanceResponse(TypedDict):
     low_balance_threshold: int
     top_up_amounts: list[int]
     auto_top_up: dict[str, Any]
+
+class CallbackSecret(TypedDict):
+    """A sub-account's callback signing secret."""
+
+    profile_id: str
+    secret: str
 
 class ChatIdDiscoveryPollResponse(TypedDict):
     """Chat ID discovery poll result"""
@@ -288,6 +307,35 @@ class CircleMemberInput(TypedDict):
 
 CircleStatus = Literal["active", "archived"]
 
+class CompanyProfile(TypedDict):
+    """The account's company profile: who the client is, printed on its invoices."""
+
+    legal_name: str
+    registration_code: Optional[str]
+    country: str
+    vat_number: Optional[str]
+    no_vat_number: bool
+    address_line1: str
+    address_line2: Optional[str]
+    city: str
+    postal_code: str
+    billing_email: str
+    updated_at: Optional[str]
+    vat_check: dict[str, Any]
+    complete: bool
+
+class CompanyResponse(TypedDict):
+    """The account's company profile."""
+
+    company: Optional["CompanyProfile"]
+
+class ConfirmationResend(TypedDict):
+    """One "Send again": when, who asked, and which channels it went to"""
+
+    at: str
+    actor: dict[str, Any]
+    channels: list[dict[str, Any]]
+
 ConfirmationStatus = Literal["pending", "approved", "denied"]
 
 ConfirmationStatusFilter = Literal["pending", "approved", "denied", "expired"]
@@ -305,6 +353,16 @@ class CreateCircleMemberBody(TypedDict):
     name: str
     whatsapp_phone: NotRequired[str]
 
+class CreateWebhookEndpointRequest(TypedDict):
+    """A new webhook endpoint. A sub-account key may create only one scoped `selected` to exactly its own sub-account."""
+
+    url: str
+    events: NotRequired[list[str]]
+    scope: Literal["all", "selected"]
+    profile_ids: NotRequired[list[str]]
+    status: NotRequired[Literal["active", "disabled"]]
+    description: NotRequired[Optional[str]]
+
 class DelegateIdentifier(TypedDict):
     """Typed delegate identifier"""
 
@@ -319,9 +377,57 @@ class CreateDelegationRequest(TypedDict):
     scope: list[str]
     expires_in: NotRequired[int]
 
+class DelegationCarrier(TypedDict):
+    """Where a delegation is still visible to a third party"""
+
+    carrier: Literal["dns_pointer", "delegate_card"]
+    state: Literal["present", "absent", "unchecked"]
+    reason: str
+    cardUrl: NotRequired[str]
+
+class DelegationCarriersResponse(TypedDict):
+    """Where this delegation is still visible to a third party"""
+
+    carriers: list["DelegationCarrier"]
+
+class DnsProviderMetadataItem(TypedDict):
+    """What one DNS provider needs and can do. The keys are camelCase as sent; this body predates the snake_case convention and is kept as it is."""
+
+    name: str
+    requiredCredentials: list[str]
+    optionalCredentials: list[str]
+    capabilities: dict[str, Any]
+    apiDocUrl: NotRequired[str]
+
+class DnsProvidersResponse(TypedDict):
+    """The DNS providers credentials can be saved for"""
+
+    providers: dict[str, Any]
+    count: int
+
 HitlChannel = Union[dict[str, Any], dict[str, Any]]
 
 HitlChannelType = Literal["telegram", "whatsapp", "browser"]
+
+class HitlKeysPutResponse(TypedDict):
+    """The keypair stored"""
+
+    kid: str
+    message: str
+
+class HitlKeysResponse(TypedDict):
+    """A HITL config's keypair. A caller with `hitl:read` (or a dashboard session) gets every field; a key holding `confirmations:create` without `hitl:read` gets `public_key` and `kid` only."""
+
+    public_key: Optional[str]
+    kid: str
+    encrypted_private_key: NotRequired[str]
+    kdf_salt: NotRequired[str]
+    wrapped_dek: NotRequired[Optional[str]]
+    dek_iv: NotRequired[Optional[str]]
+    dek_tag: NotRequired[Optional[str]]
+    backup_wrapped_dek: NotRequired[Optional[str]]
+    backup_dek_iv: NotRequired[Optional[str]]
+    backup_dek_tag: NotRequired[Optional[str]]
 
 HitlStatus = Literal["pending", "active", "archived"]
 
@@ -510,6 +616,15 @@ class ApiKeyUsageResponse(TypedDict):
     attribution_cutoff_at: Optional[str]
     attributed_fraction: Optional[float]
 
+class AssetCredentialsCheck(TypedDict):
+    """Whether the signed-in caller holds saved DNS provider credentials that can verify this domain asset"""
+
+    authenticated: bool
+    has_credentials: bool
+    message: NotRequired[str]
+    credentials: NotRequired[list[dict[str, Any]]]
+    domain: NotRequired[Optional[str]]
+
 class AvailableAssetsQuery(TypedDict):
     profile_id: NotRequired[Any]
 
@@ -603,6 +718,7 @@ class Confirmation(TypedDict):
     response: NotRequired[Optional[dict[str, Any]]]
     timeout_at: NotRequired[Optional[str]]
     proof_token: NotRequired[Optional[str]]
+    resends: NotRequired[list["ConfirmationResend"]]
     resolved_at: NotRequired[Optional[str]]
     created_at: str
     updated_at: str
@@ -614,6 +730,7 @@ class ConfirmationListQuery(TypedDict):
     limit: NotRequired[int]
     status: NotRequired["ConfirmationStatusFilter"]
     hitl_id: NotRequired["ObjectId"]
+    profile_id: NotRequired["ObjectId"]
     start_date: NotRequired[Optional[str]]
     end_date: NotRequired[Optional[str]]
 
@@ -623,10 +740,18 @@ class ConfirmationListResponse(TypedDict):
     data: list["Confirmation"]
     pagination: dict[str, Any]
 
+class ConfirmationResendResponse(TypedDict):
+    """Counts only — the response never carries a link"""
+
+    confirmation_id: "ObjectId"
+    resent: int
+    skipped: int
+
 class ConfirmationWebhookPayload(TypedDict):
     """Body of `confirmation.approved` / `confirmation.denied`. A timeout is `confirmation.denied` with `response.channel` `system` and `response.text` `timeout`."""
 
     event: Literal["confirmation.approved", "confirmation.denied"]
+    profile_id: Optional["ObjectId"]
     confirmation_id: "ObjectId"
     hitl_id: Any
     status: Literal["approved", "denied"]
@@ -741,6 +866,25 @@ class DelegationWithToken(TypedDict):
     created_at: str
     token: Optional[str]
 
+class DnsCredentialResponse(TypedDict):
+    """A saved DNS provider credential. The secret is never returned."""
+
+    id: "ObjectId"
+    provider: str
+    name: str
+    is_valid: bool
+    domains_count: int
+    last_used_at: NotRequired[str]
+    last_validated_at: NotRequired[str]
+    validation_error: NotRequired[str]
+    created_at: str
+    updated_at: str
+
+class DnsCredentialListResponse(TypedDict):
+    """The account's saved DNS provider credentials, ordered by provider"""
+
+    data: list["DnsCredentialResponse"]
+
 class Hitl(TypedDict):
     """HITL configuration with messaging channels and timeout"""
 
@@ -756,6 +900,20 @@ class Hitl(TypedDict):
     environment: Literal["production", "test"]
     created_at: str
     updated_at: str
+
+class HitlApproverKey(TypedDict):
+    """An enrolled approver's public key. `authorization_id` is the approver's consent, which a v2 envelope is keyed by. `recipient` and `channel` are absent for a key holding `confirmations:create` without `hitl:read`."""
+
+    authorization_id: "ObjectId"
+    recipient: NotRequired[str]
+    channel: NotRequired["AuthorizationChannel"]
+    public_key: Optional[str]
+    kid: str
+
+class HitlApproverKeysResponse(TypedDict):
+    """The approvers enrolled against a HITL config with a live consent"""
+
+    approver_keys: list["HitlApproverKey"]
 
 class HitlAuthorizationResponse(TypedDict):
     """Response from requesting authorization consent for HITL channels"""
@@ -788,6 +946,81 @@ class HitlListResponse(TypedDict):
     pagination: dict[str, Any]
     limits: dict[str, Any]
 
+class LookalikeAlert(TypedDict):
+    """An artifact whose name resembles one of the brand tokens, with the evidence checked"""
+
+    id: "ObjectId"
+    registry: str
+    artifact_name: str
+    canonical_id: Optional[str]
+    match_kind: str
+    brand_token: str
+    match_evidence: str
+    evidence: list[dict[str, Any]]
+    first_seen_at: str
+    notified_at: Optional[str]
+    created_at: str
+
+class LookalikeAlertList(TypedDict):
+    """A page of alerts, newest first"""
+
+    data: list["LookalikeAlert"]
+    pagination: dict[str, Any]
+
+class LookalikeReport(TypedDict):
+    """One month's report; a month with no alerts is a report too"""
+
+    id: "ObjectId"
+    period: str
+    period_start: str
+    period_end: str
+    alert_count: int
+    artifacts_checked: dict[str, Any]
+    bounds: list[dict[str, Any]]
+    sent_at: Optional[str]
+
+class LookalikeReportList(TypedDict):
+    """A page of monthly reports, latest first"""
+
+    data: list["LookalikeReport"]
+    pagination: dict[str, Any]
+
+class LookalikeWatchSubscription(TypedDict):
+    """The account's Lookalike Watch subscription. Subscribe, read and cancel all answer it; only the cancel answer reads `canceled`, since a read after cancelling answers 404."""
+
+    id: "ObjectId"
+    status: Literal["active", "canceled"]
+    brand_tokens: list[str]
+    owned_namespaces: list[str]
+    notify_email: str
+    activated_at: Optional[str]
+    last_report_period: Optional[str]
+    created_at: str
+    updated_at: str
+
+class PlanChangePreviewResponse(TypedDict):
+    """What a plan change would cost now and when it would take effect. Nothing is changed."""
+
+    plan: "BillingPlan"
+    change: Literal["upgrade", "downgrade", "keep"]
+    amount_due: int
+    currency: str
+    effective_at: Optional[str]
+
+class PlanChangeRequest(TypedDict):
+    """The plan to move to. Custom is agreed per customer and cannot be chosen here."""
+
+    plan: "BillingPlan"
+
+class PlanChangeResponse(TypedDict):
+    """The outcome of a plan change"""
+
+    plan: "BillingPlan"
+    change: Literal["upgrade", "downgrade", "keep"]
+    status: Literal["changed", "scheduled", "kept", "payment_required"]
+    effective_at: Optional[str]
+    payment_url: Optional[str]
+
 class ProfileBadgeResponse(TypedDict):
     """Everything needed to embed the verification badge for a username (proof.holdings/badge/{username})"""
 
@@ -800,6 +1033,16 @@ class ProfileBadgeResponse(TypedDict):
     badge_urls: dict[str, Any]
     snippets: dict[str, Any]
 
+class ProfileOwnerLink(TypedDict):
+    """A custom link on a sub-account, as stored (with its id)"""
+
+    _id: "ObjectId"
+    title: str
+    url: str
+    icon: NotRequired[str]
+    is_visible: bool
+    display_order: int
+
 class ProfileTemplateContent(TypedDict):
     """Body for a profile-scoped template write. Distinct from the account-level `TemplateContent`: it also accepts `is_active`, which every read of the template returns — declaring `TemplateContent` here published a field callers could read and had no documented way to set."""
 
@@ -808,6 +1051,62 @@ class ProfileTemplateContent(TypedDict):
     button_text: NotRequired[str]
     button_url_template: NotRequired[str]
     is_active: NotRequired[bool]
+
+class PublicProofItem(TypedDict):
+    """A proof the owner chose to show on a sub-account, as the owner sees it"""
+
+    asset_id: "ObjectId"
+    type: Literal["phone", "email", "domain", "social", "wallet", "telegram_bot", "delegation"]
+    display_value: str
+    label: NotRequired[str]
+    channel: NotRequired[str]
+    verified_at: str
+    is_visible: bool
+    display_order: int
+    mask_level: Literal["full", "partial", "hidden"]
+    is_revoked: NotRequired[bool]
+    delegate_type: NotRequired[Literal["human", "ai_agent"]]
+    delegation_id: NotRequired["ObjectId"]
+
+class ProfileOwnerResponse(TypedDict):
+    """A sub-account as its owner sees it"""
+
+    id: "ObjectId"
+    profile_id: str
+    username: NotRequired[Optional[str]]
+    is_primary: bool
+    display_name: NotRequired[str]
+    bio: NotRequired[str]
+    avatar_url: NotRequired[Optional[str]]
+    verification_level: Literal["basic", "verified", "business"]
+    is_business: bool
+    business_name: NotRequired[str]
+    public_proofs: list["PublicProofItem"]
+    proof_order: "ProofOrder"
+    custom_links: list["ProfileOwnerLink"]
+    theme: "ProfileTheme"
+    is_public: bool
+    show_verification_dates: bool
+    show_proof_channels: bool
+    show_delegations: bool
+    support_email: Optional[str]
+    email_theme: Optional[Literal["dark", "light"]]
+    view_count: int
+    created_at: str
+    updated_at: str
+
+class ProfileOwnerListResponse(TypedDict):
+    """The account's sub-accounts, as their owner sees them"""
+
+    profiles: list["ProfileOwnerResponse"]
+    count: int
+    max_profiles: int
+
+class PublicProofsResponse(TypedDict):
+    """A sub-account's shown proofs after an update"""
+
+    public_proofs: list["PublicProofItem"]
+    proof_order: "ProofOrder"
 
 class PutHitlKeysBody(TypedDict):
     """The client-generated RSA keypair for a HITL config. `public_key`, `encrypted_private_key` and `kdf_salt` are required; the `wrapped_dek`/`dek_iv`/`dek_tag` trio carries the v2 master-key envelope and the `backup_*` trio the recovery wrapper. The server never receives the master password, so it cannot decrypt any of it."""
@@ -828,6 +1127,13 @@ class ReadinessResponse(TypedDict):
     ready: bool
     checks: dict[str, Any]
     timestamp: str
+
+class RefreshSessionResponse(TypedDict):
+    """The session renewed; the new tokens travel in cookies. camelCase as sent; kept as it is because the dashboard reads these names."""
+
+    success: bool
+    expiresAt: str
+    expiresIn: int
 
 class RequestHealthHistoryQueryParams(TypedDict):
     """Completion-rate history query parameters"""
@@ -867,7 +1173,32 @@ class SetMasterKeyBody(TypedDict):
     master_kdf_salt: str
     backup_kdf_salt: NotRequired[str]
 
+class ShareVerificationRequestEmailResponse(TypedDict):
+    """The verification link was emailed"""
+
+    success: bool
+    message: str
+    messageId: NotRequired[str]
+
+class SmsNumbersByRegion(TypedDict):
+    """Our SMS numbers, one entry per region and always all three. A region with no number configured carries an empty `did` and no QR code."""
+
+    americas: "SessionSmsNumber"
+    europe: "SessionSmsNumber"
+    israel: "SessionSmsNumber"
+
 StatusListToken = str
+
+class SubscriptionResponse(TypedDict):
+    """The account's subscription"""
+
+    plan: "BillingPlan"
+    status: Optional[Literal["active", "past_due", "unpaid", "canceled", "incomplete", "incomplete_expired", "trialing", "paused"]]
+    current_period_start: Optional[str]
+    current_period_end: Optional[str]
+    cancel_at_period_end: bool
+    scheduled_plan: NotRequired[Optional["BillingPlan"]]
+    scheduled_change_at: NotRequired[Optional[str]]
 
 class SummaryQueryParams(TypedDict):
     """Account summary query parameters"""
@@ -886,7 +1217,7 @@ class SuspendProofResponse(TypedDict):
 class ProfileTemplate(TypedDict):
     """A message template as resolved for one public profile — either the profile override or the inherited default."""
 
-    # Deprecated: Removed from the API (templates belong to a project: use the templates resource with the project's id); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    # Deprecated: Removed from the API (templates belong to a sub-account: use the templates resource with the sub-account's id); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
 
     channel: "TemplateChannel"
     message_type: str
@@ -900,7 +1231,7 @@ class ProfileTemplate(TypedDict):
 class TopUpRequest(TypedDict):
     """Request body for buying a prepaid balance top-up"""
 
-    amount: Union[Literal["10"], Literal["50"], Literal["200"]]
+    amount: Literal["10", "50", "200", 10, 50, 200]
     auto_top_up: NotRequired[bool]
     success_url: str
     cancel_url: str
@@ -909,6 +1240,59 @@ class TopUpResponse(TypedDict):
     """Top-up checkout session creation response"""
 
     checkout_url: str
+
+class TwoFactorEmailSelectionResponse(TypedDict):
+    """No session started: choose which address the code goes to"""
+
+    requires_email_selection: bool
+    available_emails: list[dict[str, Any]]
+    message: str
+
+class TwoFactorMagicLinkResponse(TypedDict):
+    """The step-up is complete"""
+
+    status: Literal["verified"]
+    action_type: str
+    already_verified: NotRequired[bool]
+    verified_at: NotRequired[str]
+    grant_expires_at: NotRequired[str]
+    grant_single_use: NotRequired[bool]
+
+class TwoFactorSessionResponse(TypedDict):
+    """A started 2FA session"""
+
+    session_id: str
+    channel: Literal["telegram", "whatsapp", "sms", "email"]
+    status: Literal["pending"]
+    expires_at: str
+    second_method_recommended: NotRequired[bool]
+    deep_link: NotRequired[str]
+    qr_code: NotRequired[str]
+    qr_text: NotRequired[str]
+    instructions: str
+    sms_code: NotRequired[str]
+    sms_message: NotRequired[str]
+    sms_dids: NotRequired["SmsNumbersByRegion"]
+    email: NotRequired[str]
+    email_sent: NotRequired[bool]
+
+class TwoFactorStatusResponse(TypedDict):
+    """A 2FA session's state; the grant fields are present once `status` is `verified`"""
+
+    session_id: str
+    status: Literal["pending", "verified", "expired"]
+    action_type: str
+    verified_at: NotRequired[str]
+    grant_expires_at: NotRequired[str]
+    grant_single_use: NotRequired[bool]
+
+class TwoFactorVerifyResponse(TypedDict):
+    """The step-up is complete and its grant stored"""
+
+    status: Literal["verified"]
+    verified_at: str
+    grant_expires_at: str
+    grant_single_use: bool
 
 class UpdateAuthorizationBody(TypedDict):
     """Request body for updating an authorization's owner-editable metadata (F22)"""
@@ -921,12 +1305,83 @@ class UpdateCircleBody(TypedDict):
     name: NotRequired[str]
     owner_name: NotRequired[Optional[str]]
 
+class UpdateCompanyRequest(TypedDict):
+    """The whole company profile; a save replaces it. A VAT number must be an EU number belonging to `country` — refused otherwise with `400 vat_number_not_eu`, `vat_country_mismatch` or `vat_number_invalid`; neither a number nor `no_vat_number` is `400 vat_number_required`."""
+
+    legal_name: str
+    registration_code: NotRequired[Optional[str]]
+    country: str
+    vat_number: NotRequired[Optional[str]]
+    no_vat_number: NotRequired[bool]
+    address_line1: str
+    address_line2: NotRequired[Optional[str]]
+    city: str
+    postal_code: str
+    billing_email: str
+
 class UpdateHitlBody(TypedDict):
     """Request body for updating a HITL configuration"""
 
     name: NotRequired[Optional[str]]
     channels: NotRequired[list["HitlChannel"]]
     timeout_seconds: NotRequired[float]
+
+class UpdateWebhookEndpointRequest(TypedDict):
+    """Fields to change. Moving to `all` drops `profile_ids`; `profile_ids` sent alone keeps a `selected` endpoint selected. A sub-account key can never widen an endpoint."""
+
+    url: NotRequired[str]
+    events: NotRequired[list[str]]
+    scope: NotRequired[Literal["all", "selected"]]
+    profile_ids: NotRequired[list[str]]
+    status: NotRequired[Literal["active", "disabled"]]
+    description: NotRequired[Optional[str]]
+
+class UsageBalance(TypedDict):
+    """The prepaid balance as `GET /me/billing/balance` reports it, without `billing_enabled` (the usage read carries that itself)"""
+
+    balance: dict[str, Any]
+    low_balance_threshold: int
+    top_up_amounts: list[int]
+    auto_top_up: dict[str, Any]
+
+class UsagePeriod(TypedDict):
+    """One month's production usage record"""
+
+    period: str
+    total_verifications: int
+    total_confirmations: int
+    total_authorizations: int
+    total_delegations: int
+    by_type: dict[str, Any]
+    by_channel: dict[str, Any]
+    by_hitl_channel: dict[str, Any]
+
+class UsageTopChannel(TypedDict):
+    """One channel's completion this period"""
+
+    channel: str
+    count: int
+    completion_rate: float
+
+class UsageResponse(TypedDict):
+    """Usage for the current billing period, with the months asked for"""
+
+    plan: str
+    limit: int
+    billing_enabled: bool
+    card_on_file: bool
+    hard_limit: Optional[int]
+    balance: "UsageBalance"
+    current_period: str
+    current_usage: int
+    percentage: int
+    days_remaining: int
+    projected_eom_usage: int
+    is_on_track: Optional[bool]
+    projection_unreliable: bool
+    top_channels: list["UsageTopChannel"]
+    channels_with_zero_completions: list[str]
+    periods: list["UsagePeriod"]
 
 class UserAPIKeyListItem(TypedDict):
     """A live API key as the owner's key list shows it. Never carries the key value."""
@@ -941,6 +1396,72 @@ class UserAPIKeyListItem(TypedDict):
     expires_at: Optional[str]
     created_at: str
     replaced_key_ids: list["ObjectId"]
+
+class UserDomainVerificationCheckResponse(TypedDict):
+    """The result of one check of the published record or file"""
+
+    status: Literal["verified", "pending"]
+    verified_at: NotRequired[str]
+    asset: NotRequired[dict[str, Any]]
+    message: NotRequired[str]
+
+class UserDomainVerificationSessionResponse(TypedDict):
+    """A self-service domain verification session"""
+
+    session_id: str
+    domain: str
+    channel: Literal["dns", "http"]
+    status: Literal["pending"]
+    expires_at: str
+    challenge: dict[str, Any]
+
+class UserDomainVerificationStatusResponse(TypedDict):
+    """A self-service domain verification session's state"""
+
+    session_id: str
+    domain: str
+    channel: Literal["dns", "http"]
+    status: Literal["pending", "verified", "failed"]
+    created_at: str
+    verified_at: NotRequired[str]
+    challenge: NotRequired[dict[str, Any]]
+
+class AssetAutoVerifyResult(TypedDict):
+    """An asset verified from the signed-in account's existing proof or saved DNS credentials, with the request's status and progress after it"""
+
+    status: Literal["verified"]
+    verified_at: str
+    request_status: "VerificationRequestStatus"
+    progress: dict[str, Any]
+    method: Literal["reused_proof", "ownership", "auto_dns"]
+    original_verified_at: NotRequired[Optional[str]]
+    provider: NotRequired[str]
+
+class AssetCodeSubmitResult(TypedDict):
+    """The asset, verified by the submitted code, with the request's status and progress after it. A wrong code answers 400."""
+
+    status: Literal["verified"]
+    verified_at: str
+    request_status: "VerificationRequestStatus"
+    progress: dict[str, Any]
+
+class AssetVerificationCheckResult(TypedDict):
+    """A DNS or HTTP check of a domain asset: verified (with the request's `request_status` and `progress` after it), or still pending with the attempts left. A record not found yet is this 200, not an error."""
+
+    status: Literal["verified", "pending"]
+    verified_at: NotRequired[str]
+    request_status: NotRequired["VerificationRequestStatus"]
+    progress: NotRequired[dict[str, Any]]
+    message: NotRequired[str]
+    attempts_remaining: NotRequired[int]
+
+class ExtendVerificationRequestResponse(TypedDict):
+    """The request's new expiry"""
+
+    success: bool
+    message: str
+    expires_at: str
+    status: "VerificationRequestStatus"
 
 class MultiChannelChannelBlock(TypedDict):
     """Per-channel setup block of a multi-channel verification group"""
@@ -980,6 +1501,54 @@ class MultiChannelVerificationResponse(TypedDict):
     channels: list["MultiChannelChannelBlock"]
     created_at: str
 
+class IncomingVerificationRequestListItem(TypedDict):
+    """A verification request the account was asked to complete"""
+
+    id: "ObjectId"
+    reference_id: NotRequired[str]
+    status: "VerificationRequestStatus"
+    computed_state: dict[str, Any]
+    action_type: "ActionType"
+    assets: list[dict[str, Any]]
+    progress: dict[str, Any]
+    expires_at: str
+    completed_at: NotRequired[str]
+    created_at: str
+    requester: NotRequired[dict[str, Any]]
+
+class IncomingVerificationRequestListResponse(TypedDict):
+    """The verification requests the account was asked to complete, newest first"""
+
+    data: list["IncomingVerificationRequestListItem"]
+    pagination: dict[str, Any]
+
+class OwnVerificationRequestListItem(TypedDict):
+    """A verification request the account made, as its own list shows it. `public_profile_id` is the sub-account the request belongs to, absent when the request records no sub-account."""
+
+    id: "ObjectId"
+    reference_id: NotRequired[str]
+    status: "VerificationRequestStatus"
+    computed_state: dict[str, Any]
+    action_type: "ActionType"
+    source: Literal["dashboard", "api", "demo", "agent"]
+    api_key_id: Optional[str]
+    api_key_model: Optional[Literal["APIKey", "UserAPIKey"]]
+    agent_name: Optional[str]
+    assets: list[dict[str, Any]]
+    progress: dict[str, Any]
+    expires_at: str
+    completed_at: NotRequired[str]
+    created_at: str
+    branding: NotRequired[dict[str, Any]]
+    public_profile_id: NotRequired["ObjectId"]
+
+class OwnVerificationRequestListResponse(TypedDict):
+    """The verification requests the account made, newest first"""
+
+    data: list["OwnVerificationRequestListItem"]
+    pagination: dict[str, Any]
+    stats: dict[str, Any]
+
 class ProfileAssetOption(TypedDict):
     """An active asset offered for display on a public profile"""
 
@@ -988,14 +1557,39 @@ class ProfileAssetOption(TypedDict):
     identifier: str
     channel: "AssetChannel"
     verified_at: NotRequired[str]
+    proof_expires_at: NotRequired[Optional[str]]
     is_public: bool
+
+class PublicVerificationRequest(TypedDict):
+    """A verification request as its recipient sees it: masked identifiers, branding and progress, never a proof token. `action_context` is null when the request carries none."""
+
+    id: "ObjectId"
+    status: "VerificationRequestStatus"
+    action_type: "ActionType"
+    action_context: Optional["ActionContext"]
+    business: Optional[dict[str, Any]]
+    assets: list[dict[str, Any]]
+    progress: dict[str, Any]
+    partial_ok: bool
+    redirect_url: NotRequired[str]
+    expires_at: str
+    completed_at: NotRequired[str]
+    created_at: str
+
+class VerifyEmailOtpResponse(TypedDict):
+    """The address is now on the account"""
+
+    status: Literal["verified"]
+    email: str
+    verified_at: str
 
 class SettingsResponse(TypedDict):
     """Account settings"""
 
     webhook: "WebhookSettingsResponse"
     proof_expiry_days: Optional[int]
-    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    hitl: dict[str, Any]
+    # Deprecated: Removed from the API (account-level branding is retired: each sub-account carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
     branding: "BrandingSettings"
 
 # ============================================================================
@@ -1060,6 +1654,48 @@ class ConnectProviderRequest(TypedDict):
 
     credentials: dict[str, Any]
 
+class DomainCredentialAccess(TypedDict):
+    """Whether one saved DNS credential can reach a domain"""
+
+    provider: str
+    name: str
+    has_access: bool
+    is_registrar: NotRequired[bool]
+    error: NotRequired[str]
+
+class DomainCredentialCheckResponse(TypedDict):
+    """Which of the account's DNS credentials can reach a domain"""
+
+    has_credentials: bool
+    has_accessible_credential: NotRequired[bool]
+    accessible_credentials: list["DomainCredentialAccess"]
+    detected_provider: str
+    has_registrar_credentials: NotRequired[bool]
+    registrar_provider: NotRequired[str]
+    can_try_ownership_verification: NotRequired[bool]
+    suggestion: NotRequired[str]
+
+class DomainDnsRecord(TypedDict):
+    """A DNS record a domain needs, for ownership or for email sending"""
+
+    type: Literal["TXT", "CNAME", "MX"]
+    name: str
+    value: str
+    purpose: Literal["ownership", "dkim", "mx", "spf"]
+    priority: NotRequired[int]
+    verified: bool
+    verified_at: NotRequired[str]
+
+class DomainEmailVerificationState(TypedDict):
+    """An email verification of the domain. The code itself is never returned."""
+
+    email_prefix: Literal["admin", "administrator", "webmaster", "hostmaster", "postmaster"]
+    email_address: str
+    expires_at: str
+    attempts: int
+    last_sent_at: NotRequired[str]
+    verified_at: NotRequired[str]
+
 class DomainRemovedResponse(TypedDict):
     success: Literal["true"]
     domain: str
@@ -1069,7 +1705,27 @@ class DomainRemovedResponse(TypedDict):
     carriers: list[dict[str, Any]]
     notice: list[dict[str, Any]]
 
-DomainStatus = Literal["pending", "verified", "failed"]
+class DomainResendStatus(TypedDict):
+    """Email-sending setup for a domain. Present once email sending has been set up."""
+
+    domain_id: NotRequired[str]
+    status: Literal["not_registered", "pending", "verified", "failed"]
+    dkim_records: list["DomainDnsRecord"]
+    registered_at: NotRequired[str]
+    verified_at: NotRequired[str]
+    last_checked_at: NotRequired[str]
+
+DomainStatus = Literal[
+    "pending", "verifying", "verified", "failed", "expired", "revoking", "reverification_required",
+]
+
+class DomainVerificationInstructions(TypedDict):
+    """How to show control of the domain by the method it is set to"""
+
+    method: str
+    steps: list[str]
+    dns_record: NotRequired[dict[str, Any]]
+    http_file: dict[str, Any]
 
 class Domain(TypedDict):
     """Domain record"""
@@ -1077,10 +1733,39 @@ class Domain(TypedDict):
     id: "ObjectId"
     domain: str
     status: "DomainStatus"
+    detected_provider: str
+    provider_name: str
+    supports_auto_dns: bool
     verification_method: NotRequired[str]
+    verification_subtype: NotRequired[Literal["dns_record", "ownership"]]
+    for_email_sending: bool
+    for_verification: bool
+    dns_records: list["DomainDnsRecord"]
+    actual_dns_host: NotRequired[str]
+    actual_dns_host_name: NotRequired[str]
+    has_dns_mismatch: bool
+    dns_mismatch_warning: NotRequired[str]
+    txt_record_name: str
+    txt_record_value: str
+    http_file_path: str
+    http_file_content: str
+    oauth_url: NotRequired[str]
+    oauth_connected: bool
+    godaddy_connected: bool
+    supports_api_token: bool
+    supports_api_key: bool
+    has_provider_credentials: NotRequired[bool]
+    provider_credential_name: NotRequired[str]
     provider: NotRequired[str]
     email_sending_enabled: NotRequired[bool]
     profile_id: NotRequired["ObjectId"]
+    from_email: NotRequired[str]
+    resend: NotRequired["DomainResendStatus"]
+    email_verification: NotRequired["DomainEmailVerificationState"]
+    verified_providers: list[str]
+    check_count: int
+    last_checked_at: NotRequired[str]
+    error_message: NotRequired[str]
     created_at: str
     updated_at: str
     verified_at: NotRequired[str]
@@ -1099,6 +1784,25 @@ class DomainCheckResponse(TypedDict):
     verified_at: Optional[str]
     check_count: int
 
+class DomainDetailResponse(TypedDict):
+    """A domain with the steps to verify it"""
+
+    data: "Domain"
+    instructions: "DomainVerificationInstructions"
+
+class DomainEmailVerificationResponse(TypedDict):
+    """A verification code emailed to an address on the domain"""
+
+    data: "Domain"
+    message: str
+    email_sent_to: NotRequired[str]
+    expires_in_minutes: NotRequired[int]
+
+class DomainListResponse(TypedDict):
+    """The account's domains, newest first"""
+
+    data: list["Domain"]
+
 class DomainVerificationResponse(TypedDict):
     """Domain verification initiation response"""
 
@@ -1109,6 +1813,14 @@ class DomainVerificationResponse(TypedDict):
     dns_record: dict[str, Any]
     http_file: dict[str, Any]
     provider: dict[str, Any]
+
+class DomainVerificationResult(TypedDict):
+    """The domain after a verification check, by DNS or by an emailed code"""
+
+    data: "Domain"
+    verified: bool
+    renewed: NotRequired[bool]
+    message: str
 
 class ProviderParam(TypedDict):
     id: "ObjectId"
@@ -1146,6 +1858,27 @@ class AddEmailRequest(TypedDict):
 
     email: str
 
+class AddEmailSessionResponse(TypedDict):
+    """An email-add session: a code was emailed to the address"""
+
+    session_id: str
+    email: str
+    channel: Literal["otp"]
+    status: Literal["pending"]
+    expires_at: str
+    instructions: str
+    email_sent: bool
+    email_error: NotRequired[str]
+
+class AddEmailStatusResponse(TypedDict):
+    """An email-add session's state"""
+
+    session_id: str
+    email: str
+    channel: Literal["otp"]
+    status: Literal["pending", "verified"]
+    verified_at: NotRequired[str]
+
 class UserEmail(TypedDict):
     """User email address"""
 
@@ -1168,6 +1901,30 @@ class AddPhoneRequest(TypedDict):
     """Request body for adding a new phone"""
 
     channel: Literal["telegram", "whatsapp", "sms"]
+
+class AddPhoneStatusResponse(TypedDict):
+    """A phone-add session's state"""
+
+    session_id: str
+    phone_number: NotRequired[str]
+    channel: Literal["telegram", "whatsapp", "sms"]
+    status: Literal["pending", "verified"]
+    verified_at: NotRequired[str]
+
+class AddPhoneSessionResponse(TypedDict):
+    """A phone-add session: the person proves the number by sending from it over `channel`"""
+
+    session_id: str
+    channel: Literal["telegram", "whatsapp", "sms"]
+    status: Literal["pending"]
+    expires_at: str
+    deep_link: NotRequired[str]
+    qr_code: NotRequired[str]
+    qr_text: NotRequired[str]
+    instructions: str
+    sms_code: NotRequired[str]
+    sms_message: NotRequired[str]
+    sms_dids: NotRequired["SmsNumbersByRegion"]
 
 class UserPhone(TypedDict):
     """User phone number"""
@@ -1231,7 +1988,7 @@ class AuthSessionListItem(TypedDict):
     expires_at: str
     is_current: bool
 
-AuthSessionStatus = Literal["pending", "verified", "expired"]
+AuthSessionStatus = Literal["pending", "verified", "expired", "completed_elsewhere"]
 
 class AuthSessionResponse(TypedDict):
     """Auth session response"""
@@ -1366,6 +2123,7 @@ class AuthorizationWebhookPayload(TypedDict):
     """Body of `authorization.approved` / `authorization.denied` — the recipient's answer to a consent request. The recipient's phone/identifier is not included; join on `authorization_id`."""
 
     event: Literal["authorization.approved", "authorization.denied"]
+    profile_id: Optional["ObjectId"]
     authorization_id: "ObjectId"
     hitl_id: NotRequired[Any]
     status: Literal["active", "denied"]
@@ -1425,6 +2183,7 @@ class CheckoutRequest(TypedDict):
 class CheckoutResponse(TypedDict):
     """Checkout session creation response"""
 
+    checkout_url: str
     url: str
 
 class PortalRequest(TypedDict):
@@ -1435,6 +2194,7 @@ class PortalRequest(TypedDict):
 class PortalResponse(TypedDict):
     """Billing portal session creation response"""
 
+    portal_url: str
     url: str
 
 # ============================================================================
@@ -1444,7 +2204,7 @@ class PortalResponse(TypedDict):
 class BrandingSettings(TypedDict):
     """Branding settings"""
 
-    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    # Deprecated: Removed from the API (account-level branding is retired: each sub-account carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
 
     business_name: NotRequired[str]
     logo_url: NotRequired[Optional[str]]
@@ -1464,6 +2224,7 @@ class UpdateSettingsRequest(TypedDict):
     branding: NotRequired["BrandingSettings"]
     webhook: NotRequired["WebhookSettings"]
     proof_expiry_days: NotRequired[int]
+    hitl: NotRequired[dict[str, Any]]
 
 class UpdateSettingsResponse(TypedDict):
     """Account settings as stored after the update. Carries `webhook.secret` when THIS request created or rotated it — the only response that ever does."""
@@ -1471,7 +2232,8 @@ class UpdateSettingsResponse(TypedDict):
     success: bool
     webhook: "WebhookSettingsResponse"
     proof_expiry_days: Optional[int]
-    # Deprecated: Removed from the API (account-level branding is retired: each project (sub-account) carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
+    hitl: dict[str, Any]
+    # Deprecated: Removed from the API (account-level branding is retired: each sub-account carries its own branding, set with the profiles resource); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
     branding: "BrandingSettings"
 
 # ============================================================================
@@ -1506,9 +2268,12 @@ class ResendVerificationResponse(TypedDict):
     expires_at: str
 
 class SubmitChallengeRequest(TypedDict):
-    """Request body for submitting a challenge code"""
+    """Request body for submitting the code we emailed (`submitCodeSchema`)"""
 
+    code: NotRequired[str]
+    # Deprecated: Removed from the API (the route reads the code from `code`, which `verifications.submit` already sends); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
     challenge_code: str
+    # Deprecated: Removed from the API (the route never read it; send only `code`); kept so code written for an earlier 1.x release keeps compiling, and dropped in the next major version.
     source_identifier: NotRequired[str]
 
 class SubmitVerificationCodeRequest(TypedDict):
@@ -1521,6 +2286,15 @@ VerificationChannel = Literal[
 ]
 
 VerificationConfidence = Literal["high", "standard", "degraded"]
+
+class VerificationRequestExistingProofs(TypedDict):
+    """The recipient's own proofs that could answer the request's unverified assets (Smart Reuse)"""
+
+    request_id: str
+    user_logged_in: bool
+    assets: list[dict[str, Any]]
+    reusable_count: int
+    total_required: int
 
 VerificationRequestListStatus = Literal[
     "pending", "partial", "completed", "expired", "cancelled", "active",
@@ -1557,6 +2331,18 @@ class VerificationRequestListResponse(TypedDict):
 VerificationStatus = Literal[
     "pending", "verified", "failed", "expired", "revoked", "cancelled",
 ]
+
+class SubmitChallengeResponse(TypedDict):
+    """Result of submitting the code we emailed"""
+
+    id: "ObjectId"
+    status: "VerificationStatus"
+    attempts: int
+    max_attempts: int
+    verified_at: NotRequired[str]
+    proof: NotRequired[dict[str, Any]]
+    message: NotRequired[str]
+    attempts_remaining: NotRequired[int]
 
 VerificationType = Literal[
     "phone", "email", "domain", "social", "wallet", "account", "telegram_bot",
@@ -1619,6 +2405,26 @@ class Verification(TypedDict):
     updated_at: NotRequired[str]
     verified_at: NotRequired[str]
 
+class VerificationCompletedWebhookPayload(TypedDict):
+    """Body of `verification.completed` — a direct verification (`POST /verifications`, or the winning channel of a multi-channel group) or a phone-first session that completed. Sent once per verification id."""
+
+    event: Literal["verification.completed"]
+    profile_id: Optional["ObjectId"]
+    verification_id: "ObjectId"
+    type: "VerificationType"
+    channel: "VerificationChannel"
+    identifier: Optional[str]
+    status: Literal["verified"]
+    environment: Literal["production", "test"]
+    external_user_id: Optional[str]
+    client_metadata: dict[str, Any]
+    verified_at: Optional[str]
+    proof_token: str
+    proof_expires_at: Optional[str]
+    confidence: NotRequired["VerificationConfidence"]
+    session_id: NotRequired[str]
+    test: NotRequired[bool]
+
 class VerificationListItem(TypedDict):
     """Verification as listed"""
 
@@ -1636,6 +2442,7 @@ class VerificationListQuery(TypedDict):
     limit: NotRequired[int]
     status: NotRequired["VerificationStatus"]
     type: NotRequired["VerificationType"]
+    channel: NotRequired["VerificationChannel"]
 
 class VerificationListResponse(TypedDict):
     """Paginated list of verifications"""
@@ -1664,6 +2471,18 @@ class VerificationRequest(TypedDict):
     created_at: str
     updated_at: NotRequired[str]
 
+class VerificationRequestAssetStatus(TypedDict):
+    """One asset's verification status, polled by the recipient page. `request_status` is the request's, expiry re-derived: `cancelled` or `expired` ends the flow while the asset stays `pending`."""
+
+    asset_index: int
+    type: "VerificationType"
+    identifier: Optional[str]
+    status: Literal["pending", "verified", "failed"]
+    verified_at: NotRequired[str]
+    confidence: NotRequired["VerificationConfidence"]
+    request_status: "VerificationRequestStatus"
+    progress: dict[str, Any]
+
 class VerificationRequestProofsResponse(TypedDict):
     """Proof tokens for verified assets in a verification request"""
 
@@ -1677,6 +2496,13 @@ class ClaimUsernameRequest(TypedDict):
     """Request body for claiming a username"""
 
     username: str
+
+class ClaimUsernameResponse(TypedDict):
+    """The claimed username"""
+
+    username: str
+    username_claimed_at: str
+    profile_url: str
 
 class CustomLink(TypedDict):
     """Custom link on a public profile"""
@@ -1734,10 +2560,50 @@ class PublicProfileDelegation(TypedDict):
     expires_at: str
     artifact_path: Optional[str]
 
+class PublicProfileLeadingProof(TypedDict):
+    """The asset a profile's preview card, share tags and badge lead with: the first proof in the profile's order that is not hidden."""
+
+    type: Literal["phone", "email", "domain", "social", "wallet", "telegram_bot"]
+    display_value: str
+    label: Optional[str]
+
+class PublicProfileLink(TypedDict):
+    """A visible link on a public profile."""
+
+    title: str
+    url: str
+    icon: NotRequired[str]
+
+class PublicProfileProof(TypedDict):
+    """A proof shown on a public profile. The channel and the mask level are never published."""
+
+    type: Literal["phone", "email", "domain", "social", "wallet", "telegram_bot", "delegation"]
+    display_value: str
+    label: NotRequired[str]
+    verified_at: NotRequired[str]
+
+class PublicProfileView(TypedDict):
+    """A public profile as anyone may read it (`GET /api/v1/profiles/p/{profileId}`, `GET /api/v1/profiles/u/{username}`)."""
+
+    profile_id: str
+    username: NotRequired[Optional[str]]
+    display_name: NotRequired[str]
+    bio: NotRequired[str]
+    avatar_url: NotRequired[Optional[str]]
+    business_name: NotRequired[str]
+    verification_level: Literal["basic", "verified", "business"]
+    is_business: bool
+    proofs: list["PublicProfileProof"]
+    leading_proof: NotRequired[Optional["PublicProfileLeadingProof"]]
+    links: list["PublicProfileLink"]
+    theme: NotRequired["ProfileTheme"]
+    delegations: NotRequired[Optional[list["PublicProfileDelegation"]]]
+
 class UpdateProfileProofsRequest(TypedDict):
     """Request body for updating which proofs are displayed on a profile"""
 
     proofs: list["ProfileProofEntry"]
+    proof_order: NotRequired["ProofOrder"]
 
 class UpdateProfileRequest(TypedDict):
     """Request body for updating a profile"""
@@ -1761,7 +2627,7 @@ class UsernameParam(TypedDict):
     username: str
 
 class PublicProfile(TypedDict):
-    """Public profile"""
+    """Deprecated. NO endpoint returns this shape: the public reads return `PublicProfileView` and the owner's operations return `ProfileOwnerResponse`. Kept for released SDK types; removed in the next major."""
 
     id: "ObjectId"
     display_name: NotRequired[str]
@@ -1775,6 +2641,9 @@ class PublicProfile(TypedDict):
     theme: NotRequired["ProfileTheme"]
     custom_links: NotRequired[list["CustomLink"]]
     proofs: NotRequired[list[dict[str, Any]]]
+    leading_proof: NotRequired[Optional["PublicProfileLeadingProof"]]
+    proof_order: NotRequired["ProofOrder"]
+    verification_level: NotRequired[Literal["basic", "verified", "business"]]
     show_delegations: NotRequired[bool]
     email_theme: NotRequired[Optional[Literal["dark", "light"]]]
     support_email: NotRequired[Optional[str]]
@@ -1924,6 +2793,8 @@ class ProofMePageResponse(TypedDict):
     whatsapp_deep_link: str
     qr_code: str
 
+ProofOrder = Literal["default", "owner"]
+
 ProofStatusValue = Literal[
     "pending", "active", "failed", "expired", "revoked", "cancelled", "suspended",
 ]
@@ -2041,6 +2912,8 @@ class Template(TypedDict):
     is_active: NotRequired[bool]
     version: NotRequired[int]
     updated_at: NotRequired[str]
+    last_fallback_at: NotRequired[Optional[str]]
+    last_fallback_variables: NotRequired[list[str]]
 
 class TemplateContent(TypedDict):
     """Template content fields"""
@@ -2049,6 +2922,11 @@ class TemplateContent(TypedDict):
     body: str
     button_text: NotRequired[str]
     button_url_template: NotRequired[str]
+
+class TemplateDefaultsResponse(TypedDict):
+    """The platform default templates"""
+
+    defaults: dict[str, Any]
 
 class TemplatePathParam(TypedDict):
     channel: "TemplateChannel"
@@ -2073,6 +2951,20 @@ class TemplateRenderRequest(TypedDict):
 
 class TemplateScopeQuery(TypedDict):
     profile_id: NotRequired[Any]
+
+class TemplateSendWarning(TypedDict):
+    """Why a saved template would never be sent as written. The save still succeeds."""
+
+    code: Literal["template_not_sent", "template_variable_not_filled"]
+    message: str
+    variables: NotRequired[list[str]]
+
+class TemplateSendablePair(TypedDict):
+    """A channel and message type some message is sent for, so a template saved for it is used."""
+
+    channel: "TemplateChannel"
+    message_type: "MessageType"
+    variables: list[str]
 
 class TemplateVariable(TypedDict):
     """Available template variable"""
@@ -2121,7 +3013,7 @@ class CreateAPIKeyRequest(TypedDict):
     profile_id: NotRequired[Any]
 
 # ============================================================================
-# Projects
+# Sub-accounts
 # ============================================================================
 
 class ProjectDeletedResponse(TypedDict):
@@ -2170,6 +3062,42 @@ class WebhookDeliveryStats(TypedDict):
 
 WebhookDeliveryStatus = Literal["pending", "delivered", "failed"]
 
+class WebhookEndpoint(TypedDict):
+    """A webhook endpoint. Deliveries carry `X-Proof-Signature`, an HMAC-SHA256 with this endpoint's secret over `<X-Proof-Timestamp>.<body>`; the secret itself is returned only on create and rotate."""
+
+    id: "ObjectId"
+    url: str
+    events: list[str]
+    scope: Literal["all", "selected"]
+    profile_ids: list["ObjectId"]
+    status: Literal["active", "disabled"]
+    description: Optional[str]
+    legacy: bool
+    secret_set: bool
+    created_at: str
+    updated_at: str
+
+class WebhookEndpointList(TypedDict):
+    """The endpoints the caller may see. A sub-account key sees only those scoped to exactly its own sub-account."""
+
+    data: list["WebhookEndpoint"]
+
+class WebhookEndpointWithSecret(TypedDict):
+    """A webhook endpoint with its signing secret, returned once (create, rotate)."""
+
+    id: "ObjectId"
+    url: str
+    events: list[str]
+    scope: Literal["all", "selected"]
+    profile_ids: list["ObjectId"]
+    status: Literal["active", "disabled"]
+    description: Optional[str]
+    legacy: bool
+    secret_set: bool
+    created_at: str
+    updated_at: str
+    secret: str
+
 WebhookEventType = Literal[
     "verification_request.completed", "verification_request.partial", "verification_request.expired", "verification.completed", "confirmation.approved", "confirmation.denied", "authorization.approved", "authorization.denied", "proof.revoked", "proof.suspended", "proof.unsuspended", "account.deletion_scheduled", "account.deletion_cancelled",
 ]
@@ -2179,6 +3107,8 @@ class WebhookDelivery(TypedDict):
 
     id: "ObjectId"
     verification_request_id: Optional["ObjectId"]
+    endpoint_id: Optional["ObjectId"]
+    profile_id: Optional["ObjectId"]
     event_type: "WebhookEventType"
     url: str
     status: "WebhookDeliveryStatus"
@@ -2191,6 +3121,7 @@ class WebhookDelivery(TypedDict):
     error_message: Optional[str]
     created_at: str
     payload: dict[str, Any]
+    token_omitted_reason: NotRequired[Optional[Literal["source_gone", "token_absent", "token_changed"]]]
     response_body: Optional[str]
     updated_at: str
 
@@ -2199,6 +3130,8 @@ class WebhookDeliveryListItem(TypedDict):
 
     id: "ObjectId"
     verification_request_id: Optional["ObjectId"]
+    endpoint_id: Optional["ObjectId"]
+    profile_id: Optional["ObjectId"]
     event_type: "WebhookEventType"
     url: str
     status: "WebhookDeliveryStatus"
@@ -2217,6 +3150,8 @@ class WebhookDeliveryListQuery(TypedDict):
     status: NotRequired["WebhookDeliveryStatus"]
     event_type: NotRequired["WebhookEventType"]
     verification_request_id: NotRequired[Any]
+    endpoint_id: NotRequired["ObjectId"]
+    profile_id: NotRequired["ObjectId"]
 
 class WebhookDeliveryListResponse(TypedDict):
     data: list["WebhookDeliveryListItem"]
@@ -2236,6 +3171,7 @@ class WebhookPayload(TypedDict):
     """Outbound webhook payload for verification request events (`verification_request.*`), and for `confirmation.approved` when it comes from a verification request created with `action_type: "confirmation"`"""
 
     event: "WebhookEventType"
+    profile_id: Optional["ObjectId"]
     request_id: "ObjectId"
     reference_id: NotRequired[str]
     status: "VerificationRequestStatus"
@@ -2255,12 +3191,13 @@ class WebhookSettings(TypedDict):
     rotate_secret: NotRequired[bool]
 
 class WebhookSettingsResponse(TypedDict):
-    """Outbound webhook configuration as stored."""
+    """Outbound webhook configuration — DEPRECATED (#421). An account switched over to webhook endpoints sees its account-wide (`legacy`) endpoint here: `url` is null while that endpoint is disabled, a `url` write updates or creates it, `url: null` disables it (its secret is kept), and `rotate_secret` rotates its secret. An account not yet switched over sees its settings fields, as before. Omitted for an API key bound to one sub-account."""
 
     url: Optional[str]
     events: list[str]
     secret_set: bool
     secret: NotRequired[str]
+    deprecated: str
 
 # ============================================================================
 # Verify Flow
@@ -2269,7 +3206,7 @@ class WebhookSettingsResponse(TypedDict):
 class StartAssetVerificationRequest(TypedDict):
     """Request body for starting asset verification in a verification request"""
 
-    channel: Literal["telegram", "whatsapp", "sms", "email", "dns", "http", "telegram_bot_token"]
+    channel: Literal["telegram", "whatsapp", "sms", "email", "dns", "http", "telegram_bot_token", "github", "google", "facebook", "x", "linkedin", "instagram", "youtube", "tiktok", "ethereum", "solana", "bitcoin", "coinbase", "kraken"]
     identifier: NotRequired[str]
     bot_token: NotRequired[str]
 
@@ -2287,12 +3224,44 @@ class TryItResponse(TypedDict):
     request_id: "ObjectId"
     expires_at: str
 
+class StartAssetVerificationResponse(TypedDict):
+    """A started verification for one asset: what to show the person, by asset type and channel. The six fields up to `expires_at` are always sent; each other field only for the type and channel its description names. sms: `sms_dids` lists all three regions here, a region with no number carrying an empty `did`."""
+
+    verification_id: "ObjectId"
+    asset_index: int
+    type: "VerificationType"
+    channel: "VerificationChannel"
+    status: Literal["pending", "verified"]
+    expires_at: str
+    instructions: NotRequired[str]
+    deep_link: NotRequired[str]
+    qr_code: NotRequired[str]
+    qr_text: NotRequired[str]
+    message: NotRequired[str]
+    phone_number: NotRequired[str]
+    sms_code: NotRequired[str]
+    sms_message: NotRequired[str]
+    sms_dids: NotRequired["SessionSmsNumbers"]
+    suggested_region: NotRequired[Literal["americas", "europe", "israel"]]
+    email_sent: NotRequired[bool]
+    email_error: NotRequired[str]
+    record_type: NotRequired[Literal["TXT"]]
+    record_name: NotRequired[str]
+    record_value: NotRequired[str]
+    file_path: NotRequired[str]
+    file_content: NotRequired[str]
+    file_url: NotRequired[str]
+    email_sent_to: NotRequired[str]
+    otp_code_length: NotRequired[int]
+    verified_data: NotRequired[dict[str, Any]]
+    proof_token: NotRequired[str]
+
 # ============================================================================
 # 2FA
 # ============================================================================
 
 TwoFAActionType = Literal[
-    "api_key_view", "api_key_create", "api_key_revoke", "api_key_regenerate", "phone_add", "phone_remove", "email_add", "email_remove", "account_delete", "master_key_change", "hitl_key_rotate", "revocation_bulk", "settings_write", "profile_update", "templates_write", "webhook_write", "delegation_lifecycle", "domain_remove", "profile_delete", "account_delete_cancel",
+    "api_key_view", "api_key_create", "api_key_revoke", "api_key_regenerate", "phone_add", "phone_remove", "phone_primary", "email_add", "email_remove", "email_primary", "account_delete", "master_key_change", "hitl_key_rotate", "revocation_bulk", "settings_write", "profile_update", "templates_write", "webhook_write", "delegation_lifecycle", "company_update", "domain_remove", "profile_delete", "account_delete_cancel", "plan_change", "auto_top_up_change",
 ]
 
 class Start2FARequest(TypedDict):

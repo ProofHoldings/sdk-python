@@ -513,12 +513,45 @@ class TestTerminalStatesMatchBackend:
         assert "denied" in states  # backend's denial status must stop the poll fallback
         assert "declined" not in states  # not a real backend status
 
+    async def test_verification_terminal_includes_cancelled(self) -> None:
+        # A losing multi-channel sibling reads ``cancelled`` and never changes again.
+        states = self._capture_terminal_states(lambda s: s.verification_events("ver_1"))
+        assert "cancelled" in states
+
+    async def test_verifications_stream_terminal_includes_cancelled(self) -> None:
+        from proof_sdk.resources import verifications as verifications_mod
+
+        captured: dict[str, Any] = {}
+        original = verifications_mod.stream_endpoint
+
+        def patched(http_arg: Any, url: str, **kwargs: Any) -> Any:
+            captured.update(kwargs)
+
+            async def _empty():
+                if False:  # pragma: no cover
+                    yield
+
+            return _empty()
+
+        verifications_mod.stream_endpoint = patched  # type: ignore[assignment]
+        try:
+            verifications_mod.Verifications(_make_http()).stream("ver_1")
+        finally:
+            verifications_mod.stream_endpoint = original  # type: ignore[assignment]
+        assert "cancelled" in captured["terminal_states"]
+
     async def test_hitl_chat_terminal_uses_completed(self) -> None:
         states = self._capture_terminal_states(
             lambda s: s.hitl_chat_id_discovery_events("tok_1")
         )
         assert "completed" in states  # backend value from getChatIdDiscovery
         assert "discovered" not in states  # not a real backend status
+
+    async def test_auth_session_terminal_uses_verified_and_completed_elsewhere(self) -> None:
+        states = self._capture_terminal_states(lambda s: s.auth_session_events("auth_1"))
+        assert "verified" in states  # AuthSessionStatus (src/openapi/schemas.ts)
+        assert "completed_elsewhere" in states  # an email sign-in finished in another browser
+        assert "authenticated" not in states  # not a real backend status
 
 
 @pytest.mark.asyncio

@@ -52,7 +52,8 @@ class TestVerificationPolling:
         with pytest.raises(PollingTimeoutError):
             await v.wait_for_completion("ver_1", interval=0.01, timeout=0.05)
 
-    @pytest.mark.parametrize("status", ["verified", "failed", "expired", "revoked"])
+    # ``cancelled``: the losing sibling of a first-win multi-channel group.
+    @pytest.mark.parametrize("status", ["verified", "failed", "expired", "revoked", "cancelled"])
     async def test_recognizes_all_terminal_states(self, mock_http: Any, status: str) -> None:
         mock_http.get.return_value = {"id": "ver_1", "status": status}
         v = Verifications(mock_http)

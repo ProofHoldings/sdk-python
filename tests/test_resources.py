@@ -319,11 +319,12 @@ class TestConfirmations:
         mock_http.get.return_value = {"data": []}
         c = Confirmations(mock_http)
 
-        await c.list(status="pending", hitl_id="hitl_123", start_date="2026-01-01", end_date="2026-02-01", limit=10, page=2)
+        await c.list(status="pending", hitl_id="hitl_123", profile_id="prof_123", start_date="2026-01-01", end_date="2026-02-01", limit=10, page=2)
 
         mock_http.get.assert_awaited_once_with("/api/v1/confirmations", {
             "status": "pending",
             "hitl_id": "hitl_123",
+            "profile_id": "prof_123",
             "start_date": "2026-01-01",
             "end_date": "2026-02-01",
             "limit": 10,
@@ -651,6 +652,21 @@ class TestTemplates:
             params=None,
         )
 
+    async def test_list_upsert_and_preview_return_a_response_without_sendable_or_warnings(self, mock_http: Any) -> None:
+        # An API that predates `sendable` and `warnings` omits them; each response comes back exactly as sent.
+        mock_http.get.return_value = {"custom_templates": [], "available_channels": []}
+        mock_http.put.return_value = {"success": True, "template": {}}
+        mock_http.post.return_value = {"preview": {"body": "x"}, "validation_errors": [], "is_valid": True}
+        t = Templates(mock_http)
+
+        listed = await t.list()
+        saved = await t.upsert("telegram", "verification_request", {"body": "Hi {{business_name}}"})
+        previewed = await t.preview(channel="telegram", message_type="verification_request", body="Hi")
+
+        assert listed == {"custom_templates": [], "available_channels": []}
+        assert saved == {"success": True, "template": {}}
+        assert previewed == {"preview": {"body": "x"}, "validation_errors": [], "is_valid": True}
+
     async def test_delete_deletes_template(self, mock_http: Any) -> None:
         mock_http.delete.return_value = {"success": True, "message": "Template reset to default"}
         t = Templates(mock_http)
@@ -848,6 +864,16 @@ class TestProfiles:
         await p.set_primary("pr_1")
 
         mock_http.post.assert_awaited_once_with("/api/v1/me/profiles/pr_1/primary")
+
+    async def test_rotate_callback_secret_posts_without_body(self, mock_http: Any) -> None:
+        mock_http.post.return_value = {"profile_id": "pr_1", "secret": "cbsec_new"}
+        p = Profiles(mock_http)
+
+        result = await p.rotate_callback_secret("pr/1")
+
+        # Mounted under the public-profiles router (/api/v1/profiles), not /api/v1/me/profiles.
+        mock_http.post.assert_awaited_once_with("/api/v1/profiles/profiles/pr%2F1/callback-secret/rotate")
+        assert result == {"profile_id": "pr_1", "secret": "cbsec_new"}
 
     async def test_list_templates(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"profile_id": "pr_1", "templates": []}

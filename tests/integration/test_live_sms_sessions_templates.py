@@ -51,7 +51,7 @@ async def test_templates_for_the_keys_default_project(make_client):
     assert isinstance(listed["custom_templates"], list)
     assert "sms" in listed["available_channels"]
 
-    template = await client.templates.retrieve("sms", "verification_request")
+    template = await client.templates.retrieve("telegram", "verification_request")
     assert template["profile_id"] == listed["profile_id"]
     assert template["scope"] in ("project", "default")
     assert isinstance(template["template"]["body"], str)
@@ -63,7 +63,7 @@ async def test_templates_for_a_named_project_and_the_name_reaches_the_server(mak
 
     listed = await client.templates.list(profile_id=project_id)
     assert listed["profile_id"] == project_id
-    template = await client.templates.retrieve("sms", "verification_request", profile_id=project_id)
+    template = await client.templates.retrieve("telegram", "verification_request", profile_id=project_id)
     assert template["profile_id"] == project_id
 
     with pytest.raises(ForbiddenError) as refused:

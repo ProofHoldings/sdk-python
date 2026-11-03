@@ -7,7 +7,7 @@ from typing import Any
 from urllib.parse import quote
 
 from ..http import HttpClient
-from ..types import MessageType, TemplateChannel
+from ..types import CallbackSecret, MessageType, TemplateChannel
 
 
 def _warn_template_route_retired(replacement: str) -> None:
@@ -52,11 +52,21 @@ class Profiles:
         """Set a profile as the primary profile."""
         return await self._http.post(f"/api/v1/me/profiles/{quote(profile_id, safe='')}/primary")
 
+    async def rotate_callback_secret(self, profile_id: str) -> CallbackSecret:
+        """Replace a sub-account's callback signing secret (what signs its ``callback_url`` deliveries).
+
+        The response carries the new ``secret`` — returned only once, so store it now. Callback
+        deliveries already queued keep the secret they were signed with. A sub-account key
+        may rotate only its own sub-account's secret.
+        """
+        return await self._http.post(f"/api/v1/profiles/profiles/{quote(profile_id, safe='')}/callback-secret/rotate")
+
     async def list_templates(self, profile_id: str) -> dict[str, Any]:
         """List a profile's message templates (custom and default).
 
         Deprecated: the server retired this route (410 ``endpoint_retired``).
         Use ``templates.list(profile_id=...)``.
+        Removed in the next major.
         """
         _warn_template_route_retired("templates.list(profile_id=...)")
         return await self._http.get(f"/api/v1/me/profiles/{quote(profile_id, safe='')}/templates")
@@ -72,6 +82,7 @@ class Profiles:
 
         Deprecated: the server retired this route (410 ``endpoint_retired``).
         Use ``templates.upsert(channel, message_type, content, profile_id=...)``.
+        Removed in the next major.
         """
         _warn_template_route_retired("templates.upsert(channel, message_type, content, profile_id=...)")
         # NOTE: the path f-string must stay on ONE line — parsePySdkMethods
@@ -91,6 +102,7 @@ class Profiles:
 
         Deprecated: the server retired this route (410 ``endpoint_retired``).
         Use ``templates.delete(channel, message_type, profile_id=...)``.
+        Removed in the next major.
         """
         _warn_template_route_retired("templates.delete(channel, message_type, profile_id=...)")
         # NOTE: single-line path f-string — see update_template.
@@ -113,6 +125,7 @@ class Profiles:
 
         Deprecated: the server retired this route (410 ``endpoint_retired``).
         Use ``templates.preview(..., profile_id=...)``.
+        Removed in the next major.
         """
         _warn_template_route_retired("templates.preview(..., profile_id=...)")
         payload: dict[str, Any] = {
