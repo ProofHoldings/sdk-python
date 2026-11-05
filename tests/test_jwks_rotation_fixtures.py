@@ -398,8 +398,8 @@ class TestClientSurface:
 
     def test_readme_states_that_tombstones_are_kept_in_memory_only(self) -> None:
         readme = (ROOT / "README.md").read_text()
-        sections = [part for part in re.split(r"^### ", readme, flags=re.M) if part.startswith("Signing-key rotation")]
-        assert sections, 'README heading "### Signing-key rotation"'
+        sections = [part for part in re.split(r"^## ", readme, flags=re.M) if part.startswith("Key rotation\n")]
+        assert sections, 'README heading "## Key rotation"'
         assert "in memory" in sections[0]
         assert "not persisted" in sections[0]
         assert "clear_tombstones()" in sections[0]

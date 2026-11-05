@@ -6,6 +6,7 @@ import base64
 import json
 import math
 import zlib
+from datetime import datetime
 from typing import Any
 from urllib.parse import quote, urlsplit
 
@@ -22,6 +23,7 @@ from ..jwks.key_set_cache import (
     validate_max_jwks_age,
 )
 from ..jwks.keyset import Revoked, Unknown, WrongPurpose, check_key_policy
+from ..types import DelegationTokenResponse, ProofTokenResponse, ReissuedProofListResponse
 
 #: Clock skew tolerated on both the proof token and the status list, in seconds.
 CLOCK_TOLERANCE_SECONDS = 5
@@ -233,6 +235,49 @@ class Proofs:
     async def list_revoked(self) -> dict[str, Any]:
         """Get the revocation list."""
         return await self._http.get("/api/v1/proofs/revoked")
+
+    async def token(self, id: str) -> ProofTokenResponse:
+        """The current token of a proof you own, by its ``ph_ctl_*`` handle.
+
+        After a signing-key rotation this is the re-signed token. Each read is audited. A revoked
+        or expired proof answers 410 ``proof_not_live``; a delegation's token is read with
+        :meth:`delegation_token`. The proof of one of the account's own verified assets answers a
+        live API key 403 ``owner_session_required`` whatever its status: the signed-in owner reads it.
+        """
+        return await self._http.get(f"/api/v1/proofs/{quote(id, safe='')}/token")
+
+    async def list_reissued(
+        self,
+        since: datetime | str,
+        *,
+        page: int | None = None,
+        limit: int | None = None,
+    ) -> ReissuedProofListResponse:
+        """Your proofs re-issued at or after ``since``, oldest first, as references.
+
+        Pull a ``ph_ctl_*`` item with :meth:`token` and a ``ph_dlg_*`` item with
+        :meth:`delegation_token`. An API key's list leaves out the proofs of the account's own
+        verified assets. ``since`` must carry an offset: a naive ``datetime`` raises
+        ``ValueError``, and a string is sent as given.
+        """
+        if isinstance(since, datetime):
+            if since.tzinfo is None or since.utcoffset() is None:
+                raise ValueError("since must be a timezone-aware datetime")
+            since = since.isoformat()
+        params: dict[str, Any] = {"reissued_since": since}
+        if page is not None:
+            params["page"] = page
+        if limit is not None:
+            params["limit"] = limit
+        return await self._http.get("/api/v1/proofs", params)
+
+    async def delegation_token(self, handle: str) -> DelegationTokenResponse:
+        """The current token of an active delegation, by its ``ph_dlg_*`` handle.
+
+        Public: the token is already published with the delegation. Every handle that is not an
+        active delegation answers the same 404.
+        """
+        return await self._http.get(f"/api/v1/proofs/delegation-token/{quote(handle, safe='')}")
 
     async def verify_offline(self, token: str, *, check_revocation: bool = True) -> dict[str, Any]:
         """Verify a proof token without calling the Proof API with your key.

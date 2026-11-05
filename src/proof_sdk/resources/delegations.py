@@ -1,7 +1,6 @@
 """Delegations resource (Proof of Delegation).
 
-A control-proven domain authorizes a typed url/purl artifact for a set of
-capability scopes. The attestation is that the domain's controller authorized
+A control-proven domain authorizes a typed url/purl artifact. The attestation is that the domain's controller authorized
 the artifact — nothing more; it says nothing about the artifact or the
 business behind it.
 """
@@ -29,8 +28,8 @@ class Delegations:
         *,
         control_proof: str,
         delegate: DelegateIdentifier,
-        scope: list[str],
         expires_in: int | None = None,
+        scope: list[str] | None = None,
     ) -> DelegationDetail:
         """Create a delegation from your active domain control proof.
 
@@ -38,14 +37,20 @@ class Delegations:
         control proof's remainder is rejected (400), never truncated. The result carries the
         publishable token AND the derived ``effective_status``/``is_valid`` the reads carry —
         the shape of a delegation does not depend on which verb produced it.
+
+        ``scope`` is deprecated: a delegation carries no scope since delegation schema 2.0. A
+        value given is sent as is, and the server ignores it and answers with a ``Deprecation``
+        header. It stays so code written for 1.3.0 keeps running, and is removed in the next major
+        version.
         """
         body: dict[str, Any] = {
             "control_proof": control_proof,
             "delegate": delegate,
-            "scope": scope,
         }
         if expires_in is not None:
             body["expires_in"] = expires_in
+        if scope is not None:
+            body["scope"] = scope
         return await self._http.post("/api/v1/delegations", body)
 
     async def retrieve(self, id: str) -> DelegationDetail:

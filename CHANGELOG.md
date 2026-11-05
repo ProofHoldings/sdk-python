@@ -3,6 +3,35 @@
 Notable changes to [`proof-holdings-sdk`](https://pypi.org/project/proof-holdings-sdk/) (import name
 `proof_sdk`). Source: [ProofHoldings/sdk-python](https://github.com/ProofHoldings/sdk-python).
 
+## 1.4.0 — 2026-11-05
+
+The signing-key rotation (#513), on top of 1.3.0. These are additions; nothing written for 1.3.0
+stops working at run time (one typing change under "Changed").
+
+### Added
+
+- `proofs.token(id)`, `proofs.list_reissued(since, *, page=None, limit=None)` and
+  `proofs.delegation_token(handle)`: the token pull of the signing-key rotation
+  (`GET /api/v1/proofs/{id}/token`, `GET /api/v1/proofs?reissued_since=`,
+  `GET /api/v1/proofs/delegation-token/{handle}`, the last a public endpoint). A proof of one of the account's own verified assets is read by the signed-in owner: with a live API key `token` answers 403 `owner_session_required` whatever its status, `list_reissued` leaves it out and no `proof.reissued` webhook names it. `since` is a
+  timezone-aware `datetime` (a naive one raises `ValueError`) or a string sent as given. TypedDicts
+  `ProofTokenResponse`, `ReissuedProofListResponse`, `ReissuedProofItem` and
+  `DelegationTokenResponse`.
+- `JWK` gains the optional `proof_purpose`, `not_before`, `not_after`, `max_token_lifetime` and
+  `proof_legacy`; `JWKS` gains `proof_tombstones` (`JWKSTombstone`), the revoked keys.
+- The webhook event literals include `proof.reissued` and `delegation.reissued`.
+
+### Changed
+
+- `JWKS.proof_tombstones` is a required key, so a `JWKS` literal without it no longer type-checks.
+
+### Deprecated
+
+- Delegation `scope` (delegation schema 2.0: a delegation carries no scope): the `scope` argument of
+  `delegations.create` is now optional — a value given is sent as is, ignored by the server and answered with a
+  `Deprecation` header — and the `scope` key of the delegation response types is the scope a delegation issued
+  before schema 2.0 was stored with, otherwise `[]`. Removed in the next major (`sdks/shared/NEXT_MAJOR.md`).
+
 ## 1.3.0 — 2026-11-03
 
 ### Added

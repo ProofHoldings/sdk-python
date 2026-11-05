@@ -370,7 +370,7 @@ class DelegateIdentifier(TypedDict):
     value: str
 
 class CreateDelegationRequest(TypedDict):
-    """Create a delegation from a proven domain to an artifact"""
+    """Create a delegation from a proven domain to an artifact. Strict, like the request validator: an unknown key is rejected with `400 validation_error`; the deprecated `scope` is accepted and ignored."""
 
     control_proof: str
     delegate: "DelegateIdentifier"
@@ -389,6 +389,11 @@ class DelegationCarriersResponse(TypedDict):
     """Where this delegation is still visible to a third party"""
 
     carriers: list["DelegationCarrier"]
+
+class DelegationTokenResponse(TypedDict):
+    """The current token of an active delegation"""
+
+    token: str
 
 class DnsProviderMetadataItem(TypedDict):
     """What one DNS provider needs and can do. The keys are camelCase as sent; this body predates the snake_case convention and is kept as it is."""
@@ -1134,6 +1139,19 @@ class RefreshSessionResponse(TypedDict):
     success: bool
     expiresAt: str
     expiresIn: int
+
+class ReissuedProofItem(TypedDict):
+    """A re-issued proof, by reference — never the token itself"""
+
+    proof_id: str
+    reissued_at: str
+    token_url: str
+
+class ReissuedProofListResponse(TypedDict):
+    """Your proofs re-issued at or after `reissued_since`, oldest first"""
+
+    data: list["ReissuedProofItem"]
+    pagination: "PaginationResponse"
 
 class RequestHealthHistoryQueryParams(TypedDict):
     """Completion-rate history query parameters"""
@@ -2763,7 +2781,7 @@ class VerifiedUserListResponse(TypedDict):
 # ============================================================================
 
 class JWK(TypedDict):
-    """JSON Web Key. The key-type-specific members are optional because one key set may carry both an EC and an RSA key: `crv`/`x`/`y` are present on EC keys, `n`/`e` on RSA keys."""
+    """JSON Web Key. The key-type-specific members are optional because one key set may carry both an EC and an RSA key: `crv`/`x`/`y` are present on EC keys, `n`/`e` on RSA keys. A registry key also carries its family and signing window (`proof_purpose`, `not_before`, `not_after`, `max_token_lifetime`); a legacy key carries `proof_legacy` instead."""
 
     kty: Literal["EC", "RSA"]
     crv: NotRequired[Literal["P-256"]]
@@ -2774,11 +2792,23 @@ class JWK(TypedDict):
     use: Literal["sig"]
     alg: Literal["ES256", "RS256"]
     kid: str
+    proof_purpose: NotRequired[Literal["proof", "delegation", "status-list"]]
+    not_before: NotRequired[int]
+    not_after: NotRequired[int]
+    max_token_lifetime: NotRequired[int]
+    proof_legacy: NotRequired[bool]
+
+class JWKSTombstone(TypedDict):
+    """A revoked signing key. A token signed by it is `key_revoked` — fetch a re-signed copy rather than trusting it. Kept for 365 days after `revoked_at`."""
+
+    kid: str
+    revoked_at: int
 
 class JWKS(TypedDict):
-    """JSON Web Key Set for offline proof verification"""
+    """JSON Web Key Set for offline proof verification: every signing key still needed to verify a live token, plus the revoked ones as tombstones"""
 
     keys: list["JWK"]
+    proof_tombstones: list["JWKSTombstone"]
 
 class ProofMePageResponse(TypedDict):
     """Public Proof of Me page payload for a username (proof.holdings/me/{username})"""
@@ -2815,6 +2845,15 @@ class ProofStatusResponse(TypedDict):
 ProofTokenChannel = Literal[
     "whatsapp", "telegram", "sms", "email", "dns", "http", "auto", "github", "google", "facebook", "x", "linkedin", "instagram", "youtube", "tiktok", "ethereum", "solana", "bitcoin", "coinbase", "kraken", "telegram_bot_token", "browser",
 ]
+
+class ProofTokenResponse(TypedDict):
+    """The current token of a proof you own. Served with `Cache-Control: no-store`; each read is audited."""
+
+    proof_id: str
+    token: str
+    status: Literal["active", "suspended"]
+    reissued_at: Optional[str]
+    expires_at: str
 
 ProofTokenType = Literal[
     "phone", "email", "domain", "social", "wallet", "account", "telegram_bot", "confirmation", "authorization",
@@ -2868,7 +2907,7 @@ class ValidateProofRequest(TypedDict):
     identifier: NotRequired[str]
 
 class ValidateProofResponse(TypedDict):
-    """Proof validation result. Returns verification details when valid, or reason/message when invalid. A DELEGATION token answers with `token_type: "delegation"` and the `delegation` block instead of `verification`; its status resolves the cascade down to the domain control proof, which neither the status list (it packs each row's own bit) nor an offline signature check can show. Delegation-specific reasons: `unknown_delegation` (no registry record — delegations are minted fail-closed, so this is invalid, not merely unresolvable), `status_unavailable`, and `identifier_unverifiable` when an `identifier` binding is requested for a delegation."""
+    """Proof validation result. Returns verification details when valid, or reason/message when invalid. A DELEGATION token answers with `token_type: "delegation"` and the `delegation` block instead of `verification`; its status resolves the cascade down to the domain control proof, which neither the status list (it packs each row's own bit) nor an offline signature check can show. Delegation-specific reasons: `unknown_delegation` (no registry record — delegations are minted fail-closed, so this is invalid, not merely unresolvable), `unsupported_version` (a delegation token of a schema major the issuer no longer accepts — 1.x after 2.0; its owner re-issues it), `status_unavailable`, and `identifier_unverifiable` when an `identifier` binding is requested for a delegation."""
 
     valid: bool
     proof_id: NotRequired[str]
@@ -3099,7 +3138,7 @@ class WebhookEndpointWithSecret(TypedDict):
     secret: str
 
 WebhookEventType = Literal[
-    "verification_request.completed", "verification_request.partial", "verification_request.expired", "verification.completed", "confirmation.approved", "confirmation.denied", "authorization.approved", "authorization.denied", "proof.revoked", "proof.suspended", "proof.unsuspended", "account.deletion_scheduled", "account.deletion_cancelled",
+    "verification_request.completed", "verification_request.partial", "verification_request.expired", "verification.completed", "confirmation.approved", "confirmation.denied", "authorization.approved", "authorization.denied", "proof.revoked", "proof.suspended", "proof.unsuspended", "account.deletion_scheduled", "account.deletion_cancelled", "proof.reissued", "delegation.reissued",
 ]
 
 class WebhookDelivery(TypedDict):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -21,6 +22,7 @@ from proof_sdk.resources.templates import Templates
 from proof_sdk.resources.profiles import Profiles
 from proof_sdk.resources.public_profiles import PublicProfiles
 from proof_sdk.resources.me import Me
+from proof_sdk.resources.proofs import Proofs
 
 
 @pytest.mark.asyncio
@@ -976,3 +978,75 @@ class TestPublicProfiles:
 
         mock_http.get.assert_awaited_once_with("/api/v1/profiles/check-username/acme")
         assert result["available"] is True
+
+
+@pytest.mark.asyncio
+class TestProofsTokenPull:
+    PULLED = {
+        "proof_id": "ph_ctl_0123456789abcdef0123456789abcdef",
+        "token": "eyJ.re-signed.token",
+        "status": "active",
+        "reissued_at": "2026-10-10T08:00:00.000Z",
+        "expires_at": "2027-10-10T08:00:00.000Z",
+    }
+
+    async def test_token_gets_encoded_handle(self, mock_http: Any) -> None:
+        mock_http.get.return_value = self.PULLED
+        p = Proofs(mock_http)
+
+        result = await p.token("ph_ctl/special&id")
+
+        mock_http.get.assert_awaited_once_with("/api/v1/proofs/ph_ctl%2Fspecial%26id/token")
+        assert result == self.PULLED
+
+    async def test_list_reissued_serializes_aware_datetime_with_offset(self, mock_http: Any) -> None:
+        listed = {
+            "data": [
+                {
+                    "proof_id": self.PULLED["proof_id"],
+                    "reissued_at": self.PULLED["reissued_at"],
+                    "token_url": f"/api/v1/proofs/{self.PULLED['proof_id']}/token",
+                }
+            ],
+            "pagination": {"page": 2, "limit": 50, "total": 51, "total_pages": 2},
+        }
+        mock_http.get.return_value = listed
+        p = Proofs(mock_http)
+
+        since = datetime(2026, 10, 1, 15, 30, tzinfo=timezone(timedelta(hours=3)))
+        result = await p.list_reissued(since, page=2, limit=50)
+
+        mock_http.get.assert_awaited_once_with(
+            "/api/v1/proofs",
+            {"reissued_since": "2026-10-01T15:30:00+03:00", "page": 2, "limit": 50},
+        )
+        assert result == listed
+
+    async def test_list_reissued_passes_string_through(self, mock_http: Any) -> None:
+        mock_http.get.return_value = {"data": [], "pagination": {}}
+        p = Proofs(mock_http)
+
+        await p.list_reissued("2026-10-01T12:30:00Z")
+
+        mock_http.get.assert_awaited_once_with(
+            "/api/v1/proofs", {"reissued_since": "2026-10-01T12:30:00Z"}
+        )
+
+    async def test_list_reissued_refuses_naive_datetime(self, mock_http: Any) -> None:
+        p = Proofs(mock_http)
+
+        with pytest.raises(ValueError, match="timezone-aware"):
+            await p.list_reissued(datetime(2026, 10, 1, 12, 30))
+
+        mock_http.get.assert_not_awaited()
+
+    async def test_delegation_token_gets_encoded_public_pull(self, mock_http: Any) -> None:
+        mock_http.get.return_value = {"token": "eyJ.delegation.token"}
+        p = Proofs(mock_http)
+
+        result = await p.delegation_token("ph_dlg/special&id")
+
+        mock_http.get.assert_awaited_once_with(
+            "/api/v1/proofs/delegation-token/ph_dlg%2Fspecial%26id"
+        )
+        assert result == {"token": "eyJ.delegation.token"}

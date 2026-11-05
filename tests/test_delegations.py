@@ -21,7 +21,6 @@ class TestDelegations:
         result = await d.create(
             control_proof=PH_CTL,
             delegate={"type": "purl", "value": "pkg:npm/@postmark/mcp"},
-            scope=["email:send"],
             expires_in=3600,
         )
 
@@ -30,7 +29,6 @@ class TestDelegations:
             {
                 "control_proof": PH_CTL,
                 "delegate": {"type": "purl", "value": "pkg:npm/@postmark/mcp"},
-                "scope": ["email:send"],
                 "expires_in": 3600,
             },
         )
@@ -43,11 +41,24 @@ class TestDelegations:
         await d.create(
             control_proof=PH_CTL,
             delegate={"type": "url", "value": "https://mcp.example.com/server"},
-            scope=["email:send"],
         )
 
         body = mock_http.post.await_args.args[1]
         assert "expires_in" not in body
+        assert "scope" not in body
+
+    async def test_create_still_sends_a_deprecated_scope(self, mock_http: Any) -> None:
+        mock_http.post.return_value = {}
+        d = Delegations(mock_http)
+
+        await d.create(
+            control_proof=PH_CTL,
+            delegate={"type": "url", "value": "https://mcp.example.com/server"},
+            scope=["email:send"],
+        )
+
+        body = mock_http.post.await_args.args[1]
+        assert body["scope"] == ["email:send"]
 
     async def test_retrieve_escapes_id(self, mock_http: Any) -> None:
         mock_http.get.return_value = {"id": "x", "is_valid": True}
